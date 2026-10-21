@@ -2,7 +2,9 @@ var NvrCodec = (function () { var module = {exports:{}};
 'use strict';
 // H.264 RTP -> fragmented MP4. ES5 / Node 4 for TizenBrew on 2017 TVs.
 // No decoding: the TV's MSE decoder handles the original H.264 substream.
-function bytes(value) { return typeof Buffer.from === 'function' ? Buffer.from(value) : new Buffer(value); }
+// Node 4.4 exposes an inherited TypedArray.from as Buffer.from, but calling it throws.
+// Buffer.alloc identifies the real modern Buffer API; Node 4 needs its constructor.
+function bytes(value) { return typeof Buffer.alloc === 'function' ? Buffer.from(value) : new Buffer(value); }
 function zero(size) { var b = new Buffer(size); b.fill(0); return b; }
 function u16(n) { var b = zero(2); b.writeUInt16BE(n, 0); return b; }
 function u32(n) { var b = zero(4); b.writeUInt32BE(n >>> 0, 0); return b; }
@@ -406,18 +408,22 @@ function createService(options) {
       req.on('error', function () {});
       req.on('end', function () {
         if (tooLarge) return;
+        var stage = 'profile', input, id;
         try {
-          var input = profile(JSON.parse(body)); body = '';
+          input = profile(JSON.parse(body)); body = ''; stage = 'service';
           if (Object.keys(streams).length >= 16) { input.password = ''; json(res, 429, {error: '16-stream service limit reached'}); return; }
-          var id = crypto.randomBytes(24).toString('hex');
+          id = crypto.randomBytes(24).toString('hex');
           var stream = {client: token, last: Date.now(), init: null, queue: [], bytes: 0, waiter: null, error: null, rtsp: null};
           stream.rtsp = new Rtsp(input, {init: function (init) { stream.init = init; }, fragment: function (fragment) {
             if (stream.bytes + fragment.length > MAX_BUFFER) { stream.rtsp.fail('Playback cannot keep up; use fewer or smaller substreams'); return; }
             stream.queue.push(fragment); stream.bytes += fragment.length; flush(stream);
           }, error: function (message) { stream.error = message; stream.queue = []; stream.bytes = 0; flush(stream); }});
           input.password = ''; streams[id] = stream;
-          stream.rtsp.start(); json(res, 200, {id: id});
-        } catch (error) { body = ''; json(res, 400, {error: 'Invalid private NVR profile'}); }
+          stage = 'connection'; stream.rtsp.start(); json(res, 200, {id: id});
+        } catch (error) {
+          body = ''; if (input) input.password = ''; if (id && streams[id]) remove(id);
+          json(res, stage === 'profile' ? 400 : 500, {error: stage === 'profile' ? 'Invalid private NVR profile' : 'TV RTSP initialization failed (' + stage + ')'});
+        }
       }); return;
     }
     var id = parsed.query.id, stream = typeof id === 'string' ? streams[id] : null;
