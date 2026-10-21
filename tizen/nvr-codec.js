@@ -1,7 +1,9 @@
 'use strict';
 // H.264 RTP -> fragmented MP4. ES5 / Node 4 for TizenBrew on 2017 TVs.
 // No decoding: the TV's MSE decoder handles the original H.264 substream.
-function bytes(value) { return typeof Buffer.from === 'function' ? Buffer.from(value) : new Buffer(value); }
+// Node 4.4 exposes an inherited TypedArray.from as Buffer.from, but calling it throws.
+// Buffer.alloc identifies the real modern Buffer API; Node 4 needs its constructor.
+function bytes(value) { return typeof Buffer.alloc === 'function' ? Buffer.from(value) : new Buffer(value); }
 function zero(size) { var b = new Buffer(size); b.fill(0); return b; }
 function u16(n) { var b = zero(2); b.writeUInt16BE(n, 0); return b; }
 function u32(n) { var b = zero(4); b.writeUInt32BE(n >>> 0, 0); return b; }

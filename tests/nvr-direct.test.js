@@ -4,9 +4,17 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path');
 const net = require('node:net'), http = require('node:http'), crypto = require('node:crypto');
-const {spawnSync} = require('node:child_process');
+const {spawnSync,spawn} = require('node:child_process');
 const codec = require('../tizen/nvr-codec');
 const service = require('../tizen/nvr-service');
+const vm = require('node:vm');
+// Node 4.4 has a misleading inherited Buffer.from. It is present but cannot allocate Buffers.
+function LegacyBuffer(value){return typeof value==='number'?Buffer.alloc(value):Buffer.from(value);}
+LegacyBuffer.from=function(){throw new TypeError('this is not a typed array.');};
+const legacy={Buffer:LegacyBuffer,module:{exports:{}}};
+vm.runInNewContext(fs.readFileSync('tizen/nvr-codec.js','utf8'),legacy);
+assert.equal(legacy.module.exports.bytes([]).length,0);
+assert.equal(legacy.module.exports.bytes('H264').toString(),'H264');
 
 const base = {host:'192.168.0.200',port:554,channel:1,username:'viewer',password:'test-only-password'};
 for (const host of ['8.8.8.8','127.0.0.1','localhost','192.168.0.200.evil','192.168.00.2','10.0.0.256'])
@@ -119,8 +127,17 @@ async function main(){
     });
   });
   const fixturePort=await listen(fixture,network.address);
-  const httpPort=18766,api=service.createService({port:httpPort});await listen(api,'127.0.0.1',httpPort);
+  const httpPort=18766;let api,child;
   try{
+    if(process.env.NVR_NODE4){
+      child=spawn(process.env.NVR_NODE4,['-e',"var s=require('./tizen/nvr-service').createService({port:18766});s.on('error',function(e){console.error(e.code);process.exit(1)});s.listen(18766,'127.0.0.1',function(){console.log('ready')});"],{cwd:path.resolve('.')});
+      await new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>reject(Error('Node 4 fixture service startup timed out')),5000);
+        child.once('error',error=>{clearTimeout(timer);reject(error);});
+        child.once('exit',code=>{clearTimeout(timer);reject(Error('Node 4 service exited: '+code));});
+        child.stdout.on('data',data=>{if(data.toString().includes('ready')){clearTimeout(timer);resolve();}});
+      });
+    }else{api=service.createService({port:httpPort});await listen(api,'127.0.0.1',httpPort);}
     assert.equal((await fetchLocal(httpPort,'POST','/client',null,'http://evil.example')).status,403);
     const registration=await fetchLocal(httpPort,'POST','/client');assert.equal(registration.status,200);
     const client=JSON.parse(registration.body).client;
@@ -137,6 +154,11 @@ async function main(){
     assert.equal((await fetchLocal(httpPort,'DELETE','/stream'+query)).status,204);
     assert.equal((await fetchLocal(httpPort,'GET','/info'+query)).status,404);
     console.log('Digest RTSP/TCP, RTP fragmentation/wrap, real FFmpeg decode, local service origin and cleanup tests passed');
-  }finally{for(const socket of sockets)socket.destroy();await close(api);await close(fixture);}
+  }finally{
+    for(const socket of sockets)socket.destroy();
+    if(api)await close(api);
+    if(child&&child.exitCode===null){const exited=new Promise(resolve=>child.once('exit',resolve));child.kill();await exited;}
+    await close(fixture);
+  }
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
