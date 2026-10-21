@@ -111,20 +111,25 @@ var NvrDirect = (function () {
     video.onplaying = function () { if (active) report('', false); };
     video.onerror = function () { fail(new Error('TV decoder rejected this stream. Use H.264 substream or fewer cameras.')); };
     if (!window.MediaSource) { fail(new Error('TV Media Source Extensions unavailable')); return {close: close}; }
-    getClient(function (error, value) {
+    function createStream(retried) { getClient(function (error, value) {
       if (!active) return;
       if (error) { fail(error); return; }
       token = value;
       xhr = request('POST', '/stream?client=' + token,
         {host: profile.host, port: profile.port, username: profile.username, password: profile.password, channel: channel}, false,
         function (error, data) {
+          if (active && error && error.message === 'Expired local client' && !retried) {
+            if (client === token) client = '';
+            createStream(true); return;
+          }
           if (!error && data && /^[a-f0-9]{48}$/.test(data.id)) {
             id = data.id;
             if (!active) { request('DELETE', path('/stream'), null, false, function () {}); return; }
             info();
           } else if (active) fail(error || new Error('Invalid response from TV RTSP service'));
         });
-    });
+    }); }
+    createStream(false);
     return {close: close};
   }
   function resilientPlay(video, profile, channel, report) {

@@ -16,7 +16,11 @@ installing FreeMyTV's WGT with TizenBrew Installer. HLS mode remains available i
 - A test-only RTSP server verifies Digest authentication and interleaved RTP over TCP.
   Real FFmpeg-generated H.264 is depacketized (including STAP-A, FU-A and timestamp wrap),
   remuxed, inspected by ffprobe, and fully decoded by FFmpeg in tests.
-- Actual NVR authentication, TizenBrew module service operation, TV MSE playback,
+- TizenBrew 2.0.5 installed on the real TV, the FreeMyTV module service started without
+  a runtime crash, and its loopback client handshake returned HTTP 200. FreeMyTV's CCTV
+  connection form loaded in the TV's browser engine. The real NVR's unauthenticated
+  RTSP response advertises Digest/MD5; no account credentials were used for this check.
+- Actual NVR authentication, TV MSE playback,
   decoder concurrency and extended operation must still be verified on the TV.
 - H.264 progressive video only. H.265, H.264+/H.265+ modes, B frames, interlaced video,
   MPEG-PS RTP payloads, audio, and proprietary Hik-Connect transport are not supported.

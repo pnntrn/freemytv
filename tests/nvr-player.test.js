@@ -79,4 +79,12 @@ const client='a'.repeat(48),id='b'.repeat(48);
   h.player.play(h.video(),profile,1,(...args)=>reported.push(args));
   assert.equal(h.requests.length,0);assert.match(reported[0][0],/Media Source/);
 }
+{
+  const h=harness(),p=h.player.play(h.video(),profile,1,()=>{});
+  h.requests[0].respond(200,{client});
+  h.requests[1].respond(403,{error:'Expired local client'});
+  assert.equal(h.requests[2].path,'http://127.0.0.1:8766/client','Expired service capabilities are renewed once');
+  h.requests[2].respond(200,{client:'c'.repeat(48)});
+  assert.ok(h.requests[3].path.includes('c'.repeat(48)));p.close();
+}
 console.log('Direct player shared startup, MSE append, cancellation, credential boundaries and safe retry tests passed');
