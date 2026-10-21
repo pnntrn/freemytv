@@ -27,6 +27,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -v
           node tests/cctv.test.js
+          node tests/cctv-ui.test.js
           bash -n build.sh
           for source in web/*.js; do node --check "$source"; done
       - name: Build unsigned Tizen package

@@ -1,8 +1,8 @@
 # Custom Free My TV development status
 
 Phase 1 is published at https://github.com/pnntrn/freemytv.
-The initial corrected Android and Tizen CI builds passed on 21 October 2026.
-Custom Android features are under development; no television or NVR has been tested.
+The corrected Android and Tizen CI builds passed on 21 October 2026; PR #1 is merged and PR #2 adds Tizen/custom layouts.
+Custom Android features are implemented; no television or NVR has been tested.
 
 ## Android custom features
 Thai text is shared from shared/th.json; Sarabun regular and semibold are bundled with their SIL OFL license.
@@ -19,7 +19,7 @@ Native MediaPlayer RTSP compatibility, authentication and concurrent decoder lim
 
 ## GitHub setup
 
-Fork `simbasjungles/free-my-tv` into the connected `pnntrn` account, keeping `main`.
+The fork is pnntrn/freemytv, with default branch main.
 Publish Phase 1 first, then use separate feature branches and pull requests for each stage.
 The original MIT license is retained unchanged. The original website deployment is disabled on forks.
 

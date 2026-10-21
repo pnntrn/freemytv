@@ -36,6 +36,7 @@ jobs:
           printf '%s' "$APK_KEYSTORE_BASE64" | base64 --decode > "$APK_KEYSTORE"
           python3 -m unittest discover -s tests -v
           node tests/cctv.test.js
+          node tests/cctv-ui.test.js
           ./build.sh
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose FreeMyTV.apk
           python3 tizen/build.py --generic

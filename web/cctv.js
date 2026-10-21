@@ -122,7 +122,7 @@ var CCTV = (function () {
   }
   function cell(channel, count) {
     var tile = node('button', tiles); tile.className = 'cctv-tile'; tile.type = 'button';
-    tile.style.width = ((100 / (expanded ? 1 : columns)) - 1.1) + '%';
+    tile.style.width = ((100 / (expanded ? 1 : columns)) - 1) + '%';
     tile.style.height = ((100 / (expanded ? 1 : rows)) - 2) + '%';
     tile.setAttribute('aria-label', t('Channel ') + channel);
     tile.onclick = function () { expanded = expanded ? 0 : channel; render(); };
