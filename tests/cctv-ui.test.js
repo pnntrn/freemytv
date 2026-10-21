@@ -98,6 +98,8 @@ assert.equal(inputs[3].type,'password');assert.equal(inputs[3].value,'test-only-
 button('Save · Session only').click();
 assert.equal(directCalls.length,1,'Direct mode starts with a single substream');
 assert.equal(directCalls[0].channel,1);
+button('Substream').click();assert.equal(directCalls.at(-1).profile.stream,1);
+button('Main stream').click();assert.equal(directCalls.at(-1).profile.stream,2);
 button('NVR mosaic (Channel Zero)').click();assert.equal(directCalls[0].closed,true);assert.equal(directCalls.at(-1).channel,0);
 button('Grid 1').click();button('16 (4×4)').click();
 assert.equal(root().querySelectorAll('video').length,16);

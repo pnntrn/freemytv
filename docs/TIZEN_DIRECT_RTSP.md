@@ -37,6 +37,8 @@ installing FreeMyTV's WGT with TizenBrew Installer. HLS mode remains available i
    Direct mode starts with one tile. Use an H.264 baseline/progressive substream for the
    first test; avoid changing the main recording stream.
 4. Verify channel 1 for 15 minutes, then try channel 16 and expand/restore with OK/Back.
+   The **Substream/Main stream** button requests the corresponding existing NVR stream;
+   it does not change the NVR encoder configuration or recording settings.
 5. If the NVR exposes an H.264 channel-zero stream at `/Streaming/Channels/001`, try
    **NVR mosaic (Channel Zero)**. Set up a 4×4 mosaic on the NVR itself if supported by
    that firmware. This button requests one composed stream; it does not configure the

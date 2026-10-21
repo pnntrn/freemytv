@@ -15,8 +15,9 @@ function profile(input) {
       || typeof input.channel !== 'number' || input.channel % 1 || input.channel < 0 || input.channel > 64
       || typeof input.username !== 'string' || !input.username || input.username.length > 64
       || typeof input.password !== 'string' || input.password.length > 128
+      || input.stream !== undefined && input.stream !== 1 && input.stream !== 2
       || /[\x00-\x1f\x7f]/.test(input.username + input.password)) throw new Error('Invalid private NVR profile');
-  return {host: input.host, port: input.port, channel: input.channel, username: input.username, password: input.password};
+  return {host: input.host, port: input.port, channel: input.channel, username: input.username, password: input.password, stream: input.stream === 1 ? 1 : 2};
 }
 function md5(text) { return crypto.createHash('md5').update(text, 'utf8').digest('hex'); }
 function parseChallenge(header) {
@@ -38,14 +39,15 @@ function authorization(challenge, credentials, method, uri, count) {
     + (challenge.qop ? ', qop=auth, nc=' + nc + ', cnonce=' + quote(cnonce) : '');
 }
 function streamDescription(sdp, base, source) {
-  var lines = sdp.split(/\r?\n/), video = false, candidates = [], format = {}, control = '', payloads = [], sessionControl = '';
+  var lines = sdp.split(/\r?\n/), video = false, candidates = [], format = {}, control = '', payloads = [], sessionControl = '', advertised = [];
   lines.forEach(function (line) {
     var match;
     if (/^m=/.test(line)) {
       if (video) candidates.push({format: format, control: control, payloads: payloads});
       video = /^m=video\s/.test(line); format = {}; control = ''; payloads = line.split(/\s+/).slice(3);
-    } else if (video && (match = /^a=rtpmap:(\d+) H264\/90000\s*$/i.exec(line))) {
-      format[match[1]] = format[match[1]] || {}; format[match[1]].h264 = true;
+    } else if (video && (match = /^a=rtpmap:(\d+) ([A-Za-z0-9_-]{1,32})\/(\d+)\s*$/i.exec(line))) {
+      format[match[1]] = format[match[1]] || {}; format[match[1]].h264 = match[2].toUpperCase() === 'H264' && +match[3] === 90000;
+      if (advertised.indexOf(match[2].toUpperCase()) === -1) advertised.push(match[2].toUpperCase());
     } else if (video && (match = /^a=fmtp:(\d+) (.*)$/.exec(line))) {
       var item = format[match[1]] = format[match[1]] || {};
       item.fmtp = match[2];
@@ -61,7 +63,7 @@ function streamDescription(sdp, base, source) {
       return false;
     });
   });
-  if (!found || !found.control || found.control === '*') throw new Error('Select H.264 substream; this SDP has no supported H.264 video track');
+  if (!found || !found.control || found.control === '*') throw new Error('No supported H.264 video track (NVR advertises: ' + (advertised.join(', ') || 'none') + ')');
   var packetization = /(?:^|;)\s*packetization-mode=(\d+)/.exec(found.fmtp);
   if (packetization && +packetization[1] > 1) throw new Error('Unsupported H.264 packetization mode');
   var sets = /(?:^|;)\s*sprop-parameter-sets=([^;\s]+)/.exec(found.fmtp), sps, pps;
@@ -80,7 +82,8 @@ function streamDescription(sdp, base, source) {
 }
 function Rtsp(input, callbacks) {
   this.profile = profile(input); this.callbacks = callbacks; this.socket = null;
-  this.uri = 'rtsp://' + this.profile.host + ':' + this.profile.port + '/Streaming/Channels/' + (input.channel === 0 ? '001' : input.channel + '02');
+  this.uri = 'rtsp://' + this.profile.host + ':' + this.profile.port + '/Streaming/Channels/'
+    + (input.channel === 0 ? '001' : input.channel + (this.profile.stream === 1 ? '01' : '02'));
   this.buffer = codec.bytes([]); this.cseq = 0; this.pending = null; this.session = ''; this.challenge = null; this.authCount = 0;
   this.closed = false; this.ready = false; this.keepalive = null; this.deadline = null;
 }
