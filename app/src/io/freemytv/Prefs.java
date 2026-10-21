@@ -59,7 +59,7 @@ final class Prefs {
     static String language() {
         String v = app == null ? Config.LANGUAGE : sp().getString("language", Config.LANGUAGE);
         v = v.trim().toLowerCase(Locale.ROOT);
-        return v.startsWith("ru") ? "ru" : v.startsWith("pt") ? "pt" : v.startsWith("es") ? "es" : v.startsWith("de") ? "de"
+        return v.startsWith("th") ? "th" : v.startsWith("ru") ? "ru" : v.startsWith("pt") ? "pt" : v.startsWith("es") ? "es" : v.startsWith("de") ? "de"
                 : v.startsWith("en") ? "en" : "auto";
     }
 
@@ -119,6 +119,9 @@ final class Prefs {
         for (String p : packages) sb.append(sb.length() == 0 ? "" : ",").append(p);
         put("shelf", sb.toString());
     }
+
+    static int settingsShortcut() { return sp().getInt("settings-shortcut", KeyEvent.KEYCODE_MENU); }
+    static void setSettingsShortcut(int code) { sp().edit().putInt("settings-shortcut", code).apply(); version++; }
 
     // MARK: - Remote buttons
 

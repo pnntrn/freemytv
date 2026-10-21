@@ -11,8 +11,11 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-GENERIC = {'tmdbKey': '', 'tmdbRegion': '', 'latitude': '', 'longitude': '', 'city': '', 'language': 'auto',
-           'currency': '', 'temperature': 'auto', 'showCrypto': True}
+with open(os.path.join(ROOT, 'shared', 'defaults.json'), encoding='utf-8') as source:
+    DEFAULTS = json.load(source)
+GENERIC = {'tmdbKey': '', 'tmdbRegion': DEFAULTS['tmdb_region'], 'latitude': DEFAULTS['latitude'],
+           'longitude': DEFAULTS['longitude'], 'city': DEFAULTS['city'], 'language': DEFAULTS['language'],
+           'currency': DEFAULTS['currency'], 'temperature': DEFAULTS['temperature'], 'showCrypto': True}
 
 
 def config_from_args(args):
@@ -81,9 +84,11 @@ def files(config, made_by):
         if name.endswith('.png') or name.startswith('LICENSE'):
             with open(os.path.join(symbols, name), 'rb') as f:
                 out['symbols/' + name] = f.read()
-    for name in ('InterVariable.ttf', 'OFL.txt'):
+    for name in ('InterVariable.ttf', 'OFL.txt', 'Sarabun-Regular.ttf', 'Sarabun-SemiBold.ttf', 'Sarabun-OFL.txt'):
         with open(os.path.join(ROOT, 'app', 'assets', 'fonts', name), 'rb') as f:
             out['fonts/' + name] = f.read()
+    with open(os.path.join(ROOT, 'shared', 'th.json'), encoding='utf-8') as source:
+        out['thai.js'] = ('window.THAI = ' + source.read().strip() + ';\n').encode('utf-8')
     return out
 
 

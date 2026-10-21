@@ -141,7 +141,7 @@ var I18N = (function () {
   function detect(setting) {
     var v = (setting || 'auto').toLowerCase();
     if (v === 'auto') v = (navigator.language || 'en').toLowerCase();
-    return v.indexOf('ru') === 0 ? 'ru' : v.indexOf('de') === 0 ? 'de' : v.indexOf('pt') === 0 ? 'pt' : v.indexOf('es') === 0 ? 'es' : 'en';
+    return v.indexOf('th') === 0 ? 'th' : v.indexOf('ru') === 0 ? 'ru' : v.indexOf('de') === 0 ? 'de' : v.indexOf('pt') === 0 ? 'pt' : v.indexOf('es') === 0 ? 'es' : 'en';
   }
 
   return {
@@ -151,9 +151,9 @@ var I18N = (function () {
       return n + ' ' + (last >= 11 && last <= 14 ? many : last % 10 === 1 ? one : last % 10 >= 2 && last % 10 <= 4 ? few : many);
     },
     get lang() { return lang; },
-    tr: function (pt, en, es) { return lang === 'ru' ? russianText(en) : lang === 'de' ? germanText(en) : lang === 'es' ? (es || en) : lang === 'en' ? en : pt; },
+    tr: function (pt, en, es) { return lang === 'th' ? ((window.THAI || {})[en] || en) : lang === 'ru' ? russianText(en) : lang === 'de' ? germanText(en) : lang === 'es' ? (es || en) : lang === 'en' ? en : pt; },
     /** BCP 47 tag for dates, numbers and TMDB. */
-    locale: function () { return lang === 'ru' ? 'ru-RU' : lang === 'de' ? 'de-DE' : lang === 'es' ? 'es-MX' : lang === 'en' ? 'en-US' : 'pt-BR'; }
+    locale: function () { return lang === 'th' ? 'th-TH' : lang === 'ru' ? 'ru-RU' : lang === 'de' ? 'de-DE' : lang === 'es' ? 'es-MX' : lang === 'en' ? 'en-US' : 'pt-BR'; }
   };
 })();
 

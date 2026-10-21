@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Free My TV</string>
+    <string name="remote_key_service">ให้ปุ่มแอปบนรีโมตเปิดแอปที่เลือกใน Free My TV จากแอปอื่น โดยอ่านเฉพาะปุ่มเหล่านั้น</string>
+</resources>

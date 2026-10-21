@@ -14,6 +14,10 @@
          (for "All Apps"). -->
     <queries>
         <package android:name="com.netflix.ninja" />
+        <package android:name="com.viu.tv" />
+        <package android:name="com.vuclip.viu.tv" />
+        <package android:name="com.iqiyi.i18n.tv" />
+        <package android:name="in.startv.hotstar.dplus.tv" />
         <package android:name="com.google.android.youtube.tv" />
         <package android:name="com.amazon.amazonvideo.livingroom" />
         <package android:name="com.disney.disneyplus" />
@@ -49,6 +53,12 @@
         android:allowBackup="false"
         android:usesCleartextTraffic="false">
 
+        <activity android:name=".CctvActivity" android:exported="false"
+            android:process=":home" android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+        <activity android:name=".CustomSettingsActivity" android:exported="false"
+            android:process=":home" android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
         <!-- The app's icon opens the settings (switch between Free My TV and the original home screen). -->
         <activity
             android:name=".SettingsActivity"

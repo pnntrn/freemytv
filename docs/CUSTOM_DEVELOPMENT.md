@@ -1,7 +1,21 @@
 # Custom Free My TV development status
 
-Phase 1 is prepared locally, pending creation of the GitHub fork and publication.
-No custom Android or CCTV feature is implemented yet. No television or NVR has been tested.
+Phase 1 is published at https://github.com/pnntrn/freemytv.
+The initial corrected Android and Tizen CI builds passed on 21 October 2026.
+Custom Android features are under development; no television or NVR has been tested.
+
+## Android custom features
+Thai text is shared from shared/th.json; Sarabun regular and semibold are bundled with their SIL OFL license.
+New installations default to Mueang Surin, Thailand, Celsius and Thai. Existing TV settings take priority.
+The shelf defaults to YouTube, Netflix, Viu, Disney+, Prime Video, iQIYI and the internal CCTV interface.
+Missing Android apps open their Play Store page instead of silently installing software.
+Disney+ and Viu include regional Android TV package aliases. Store/device availability still needs testing.
+The home drawer has Settings and CCTV. Its configurable Menu/Info/color shortcut works while this app
+has focus; it does not hijack Home, Back, Power or keys owned by another app.
+CCTV profiles are encrypted with AES-GCM and an Android Keystore key in no-backup storage.
+Only private RFC1918 IPv4 addresses are accepted. Hikvision and VIGI path templates are editable.
+The grids support 1/4/9 tiles with paging up to 64 channels and OK to expand a tile.
+Native MediaPlayer RTSP compatibility, authentication and concurrent decoder limits are unverified.
 
 ## GitHub setup
 

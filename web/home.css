@@ -524,3 +524,7 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 
 /* The Magic Remote's pointer: no text selection, no outlines. */
 * { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+@font-face { font-family: 'Sarabun'; src: url('fonts/Sarabun-Regular.ttf') format('truetype'); font-weight: 400; }
+@font-face { font-family: 'Sarabun'; src: url('fonts/Sarabun-SemiBold.ttf') format('truetype'); font-weight: 600; }
+html[lang=th] body { font-family: 'Sarabun', sans-serif; }
