@@ -86,9 +86,9 @@ var NvrDirect = (function () {
       queueBytes = 0; next();
     }
     function connectDecoder(info) {
-      if (!info || typeof info.codec !== 'string' || !/^avc1\.[a-f0-9]{6}$/.test(info.codec)) { fail(new Error('Invalid H.264 codec')); return; }
+      if (!info || typeof info.codec !== 'string' || !/^(avc1\.[a-f0-9]{6}|hvc1\.[ABC]?\d{1,2}\.[A-F0-9]{1,8}\.[LH]\d{1,3}(?:\.[A-F0-9]{1,2}){0,6})$/.test(info.codec)) { fail(new Error('Invalid video codec')); return; }
       var type = 'video/mp4; codecs="' + info.codec + '"';
-      if (!window.MediaSource || !window.MediaSource.isTypeSupported(type)) { fail(new Error('TV does not support this H.264 profile')); return; }
+      if (!window.MediaSource || !window.MediaSource.isTypeSupported(type)) { fail(new Error('TV does not support this video profile')); return; }
       media = new window.MediaSource(); objectURL = window.URL.createObjectURL(media); video.src = objectURL;
       media.addEventListener('sourceopen', function () {
         if (!active || buffer) return;

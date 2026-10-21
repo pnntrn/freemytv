@@ -16,6 +16,9 @@ vm.runInNewContext(fs.readFileSync('tizen/nvr-codec.js','utf8'),legacy);
 assert.equal(legacy.module.exports.bytes([]).length,0);
 assert.equal(legacy.module.exports.bytes('H264').toString(),'H264');
 
+const hevc = process.env.NVR_TEST_HEVC === '1';
+const Video = hevc ? codec.H265 : codec.H264;
+const nalType = n => hevc ? (n[0] >>> 1) & 63 : n[0] & 31;
 const base = {host:'192.168.0.200',port:554,channel:1,username:'viewer',password:'test-only-password'};
 for (const host of ['8.8.8.8','127.0.0.1','localhost','192.168.0.200.evil','192.168.00.2','10.0.0.256'])
   assert.throws(()=>service.profile({...base,host}));
@@ -25,19 +28,19 @@ assert.match(new service.Rtsp({...base,channel:0},{}).uri,/\/001$/);
 assert.match(new service.Rtsp({...base,stream:1},{}).uri,/\/101$/);
 assert.match(new service.Rtsp(base,{}).uri,/\/102$/);
 assert.throws(()=>service.profile({...base,stream:3}));
-assert.throws(()=>service.streamDescription('m=video 0 RTP/AVP 96\r\na=rtpmap:96 H265/90000\r\na=control:track1\r\n','rtsp://192.168.0.200/',base),/NVR advertises: H265/);
+assert.throws(()=>service.streamDescription('m=video 0 RTP/AVP 96\r\na=rtpmap:96 JPEG/90000\r\na=control:track1\r\n','rtsp://192.168.0.200/',base),/NVR advertises: JPEG/);
 assert.throws(()=>service.profile({...base,username:'viewer\r\nBad: value'}));
 assert.throws(()=>service.parseChallenge('Basic realm="nvr"'));
 assert.throws(()=>service.parseChallenge('Digest realm="nvr", nonce="abc", qop="auth-int"'));
 const digest = service.parseChallenge('Digest realm="nvr", nonce="abc", qop="auth,auth-int"');
 assert.match(service.authorization(digest,base,'DESCRIBE','rtsp://192.168.0.200/',1),/^Digest /);
-assert.throws(()=>service.streamDescription('m=video 0 RTP/AVP 96\r\na=rtpmap:96 H265/90000\r\na=control:track1\r\n','rtsp://192.168.0.200/',base));
+assert.throws(()=>service.streamDescription('m=video 0 RTP/AVP 96\r\na=rtpmap:96 JPEG/90000\r\na=control:track1\r\n','rtsp://192.168.0.200/',base));
 assert.throws(()=>service.streamDescription('m=video 0 RTP/AVP 96\r\na=rtpmap:96 H264/90000\r\na=control:rtsp://8.8.8.8/video\r\n','rtsp://192.168.0.200/',base));
 
-const root = path.resolve('out/nvr-test'); fs.mkdirSync(root,{recursive:true});
+const root = path.resolve(hevc ? 'out/hevc-test' : 'out/nvr-test'); fs.mkdirSync(root,{recursive:true});
 const h264File = path.join(root,'source.h264'), mp4File = path.join(root,'result.mp4');
 let generated = spawnSync('ffmpeg',['-hide_banner','-loglevel','error','-y','-f','lavfi','-i','testsrc2=size=320x180:rate=5',
-  '-t','3','-c:v','libx264','-profile:v','baseline','-pix_fmt','yuv420p','-bf','0','-x264-params','keyint=5:aud=1:repeat-headers=1','-f','h264',h264File],{encoding:'utf8'});
+  '-t','3','-c:v',hevc?'libx265':'libx264','-profile:v',hevc?'main':'baseline','-pix_fmt','yuv420p','-bf','0',hevc?'-x265-params':'-x264-params','keyint=5:aud=1:repeat-headers=1:pools=1:frame-threads=1:log-level=error','-f',hevc?'hevc':'h264',h264File],{encoding:'utf8'});
 assert.equal(generated.status,0,generated.stderr || 'FFmpeg is required for media verification');
 function nals(data) {
   const positions=[];
@@ -47,20 +50,25 @@ function nals(data) {
   return positions.map((p,i)=>data.subarray(p[1],i+1<positions.length?positions[i+1][0]:data.length));
 }
 const source=nals(fs.readFileSync(h264File));
-const sps=source.find(n=>(n[0]&31)===7),pps=source.find(n=>(n[0]&31)===8);
-assert.deepEqual(codec.dimensions(sps),{width:320,height:180});
+const sps=source.find(n=>nalType(n)===(hevc?33:7)),pps=source.find(n=>nalType(n)===(hevc?34:8)),vps=source.find(n=>nalType(n)===32);
+const parameterTypes=hevc?[32,33,34]:[7,8];
+const size=hevc?codec.hevcInfo(sps):codec.dimensions(sps);assert.equal(size.width,320);assert.equal(size.height,180);
 const frames=[];let current=[];
-for(const nal of source) { if((nal[0]&31)===9&&current.length){frames.push(current);current=[];}current.push(nal); }
+for(const nal of source) { if(nalType(nal)===(hevc?35:9)&&current.length){frames.push(current);current=[];}current.push(nal); }
 if(current.length)frames.push(current);
 let sequence=65520;
 function packets(frame,index) {
   const payloads=[];
   // Test STAP-A parameter aggregation plus FU-A slices, RTP extension and sequence wrap.
-  const sets=frame.filter(n=>[7,8].includes(n[0]&31));
-  if(sets.length){const parts=[Buffer.from([24])];for(const nal of sets){const length=Buffer.alloc(2);length.writeUInt16BE(nal.length);parts.push(length,nal);}payloads.push(Buffer.concat(parts));}
-  for(const nal of frame.filter(n=>![7,8].includes(n[0]&31))) {
+  const sets=frame.filter(n=>parameterTypes.includes(nalType(n)));
+  if(sets.length){const parts=[Buffer.from(hevc?[96,1]:[24])];for(const nal of sets){const length=Buffer.alloc(2);length.writeUInt16BE(nal.length);parts.push(length,nal);}payloads.push(Buffer.concat(parts));}
+  for(const nal of frame.filter(n=>!parameterTypes.includes(nalType(n)))) {
     if(nal.length<=500)payloads.push(nal);
-    else for(let at=1;at<nal.length;at+=400)payloads.push(Buffer.concat([Buffer.from([(nal[0]&224)|28,(nal[0]&31)|(at===1?128:0)|(at+400>=nal.length?64:0)]),nal.subarray(at,at+400)]));
+    else for(let at=hevc?2:1;at<nal.length;at+=400){
+      const flags=(at===(hevc?2:1)?128:0)|(at+400>=nal.length?64:0);
+      const header=hevc?[(nal[0]&129)|98,nal[1],nalType(nal)|flags]:[(nal[0]&224)|28,nalType(nal)|flags];
+      payloads.push(Buffer.concat([Buffer.from(header),nal.subarray(at,at+400)]));
+    }
   }
   return payloads.map((payload,i)=>{
     const header=Buffer.alloc(20);header[0]=0x90;header[1]=96|(i===payloads.length-1?128:0);
@@ -70,18 +78,18 @@ function packets(frame,index) {
   });
 }
 const allPackets=frames.map(packets);
-const fragments=[];const demux=new codec.H264({onInit:init=>fragments.push(init.data),onFragment:data=>fragments.push(data)});
+const fragments=[];const demux=new Video({onInit:init=>fragments.push(init.data),onFragment:data=>fragments.push(data)});
 for(const frame of allPackets)for(const packet of frame)demux.rtp(packet,96);
 fs.writeFileSync(mp4File,Buffer.concat(fragments));
 const probe=spawnSync('ffprobe',['-v','error','-select_streams','v:0','-count_frames','-show_entries','stream=codec_name,width,height,nb_read_frames','-of','json',mp4File],{encoding:'utf8'});
 assert.equal(probe.status,0,probe.stderr);
 const stream=JSON.parse(probe.stdout).streams[0];
-assert.equal(stream.codec_name,'h264');assert.equal(stream.width,320);assert.equal(stream.height,180);
+assert.equal(stream.codec_name,hevc?'hevc':'h264');assert.equal(stream.width,320);assert.equal(stream.height,180);
 assert.equal(+stream.nb_read_frames,frames.length-1,'Only the final frame waits for its following timestamp');
 const decode=spawnSync('ffmpeg',['-hide_banner','-loglevel','error','-i',mp4File,'-f','null','-'],{encoding:'utf8'});
 assert.equal(decode.status,0,decode.stderr);assert.equal(decode.stderr,'');
-assert.throws(()=>new codec.H264({}).rtp(Buffer.from([0]),96));
-const broken=new codec.H264({onInit(){},onFragment(){}});broken.rtp(allPackets[0][0],96);
+assert.throws(()=>new Video({}).rtp(Buffer.from([0]),96));
+const broken=new Video({onInit(){},onFragment(){}});broken.rtp(allPackets[0][0],96);
 const lost=Buffer.from(allPackets[0][1]);lost.writeUInt16BE((lost.readUInt16BE(2)+1)&65535,2);
 assert.throws(()=>broken.rtp(lost,96),/loss/);
 
@@ -118,7 +126,7 @@ async function main(){
         const hash=s=>crypto.createHash('md5').update(s).digest('hex');
         const expected=hash(hash(base.username+':fixture:'+base.password)+':fixture-nonce:'+fields.nc+':'+fields.cnonce+':auth:'+hash(method+':'+uri));
         assert.equal(fields.response,expected);authenticated++;
-        if(method==='DESCRIBE')respond('200 OK',{'Content-Type':'application/sdp','Content-Base':uri+'/'},'v=0\r\nm=video 0 RTP/AVP 96\r\na=rtpmap:96 H264/90000\r\na=fmtp:96 packetization-mode=1;sprop-parameter-sets='+sps.toString('base64')+','+pps.toString('base64')+'\r\na=control:trackID=1\r\n');
+        if(method==='DESCRIBE')respond('200 OK',{'Content-Type':'application/sdp','Content-Base':uri+'/'},'v=0\r\nm=video 0 RTP/AVP 96\r\na=rtpmap:96 '+(hevc?'H265':'H264')+'/90000\r\na=fmtp:96 '+(hevc?'sprop-vps='+vps.toString('base64')+';sprop-sps='+sps.toString('base64')+';sprop-pps='+pps.toString('base64'):'packetization-mode=1;sprop-parameter-sets='+sps.toString('base64')+','+pps.toString('base64'))+'\r\na=control:trackID=1\r\n');
         else if(method==='SETUP'){setup++;respond('200 OK',{Session:'test-session;timeout=60',Transport:'RTP/AVP/TCP;unicast;interleaved=0-1'});}
         else if(method==='PLAY'){
           playing++;respond('200 OK',{Session:'test-session'});let index=0;
@@ -151,7 +159,7 @@ async function main(){
     const query='?client='+client+'&id='+id;
     let info;
     for(let i=0;i<50;i++){info=await fetchLocal(httpPort,'GET','/info'+query);if(info.status!==202)break;await new Promise(r=>setTimeout(r,20));}
-    assert.equal(info.status,200,info.body.toString());assert.match(JSON.parse(info.body).codec,/^avc1\./);
+    assert.equal(info.status,200,info.body.toString());assert.match(JSON.parse(info.body).codec,hevc?/^hvc1\./:/^avc1\./);
     const init=await fetchLocal(httpPort,'GET','/init'+query);assert.equal(init.status,200);
     const media=await fetchLocal(httpPort,'GET','/next'+query);assert.equal(media.status,200);assert.ok(media.body.includes(Buffer.from('moof')));
     assert.ok(authenticated>=3);assert.equal(setup,1);assert.equal(playing,1);

@@ -46,7 +46,8 @@ function streamDescription(sdp, base, source) {
       if (video) candidates.push({format: format, control: control, payloads: payloads});
       video = /^m=video\s/.test(line); format = {}; control = ''; payloads = line.split(/\s+/).slice(3);
     } else if (video && (match = /^a=rtpmap:(\d+) ([A-Za-z0-9_-]{1,32})\/(\d+)\s*$/i.exec(line))) {
-      format[match[1]] = format[match[1]] || {}; format[match[1]].h264 = match[2].toUpperCase() === 'H264' && +match[3] === 90000;
+      format[match[1]] = format[match[1]] || {};
+      format[match[1]].encoding = +match[3] === 90000 && /^(H264|H265)$/i.test(match[2]) ? match[2].toUpperCase() : '';
       if (advertised.indexOf(match[2].toUpperCase()) === -1) advertised.push(match[2].toUpperCase());
     } else if (video && (match = /^a=fmtp:(\d+) (.*)$/.exec(line))) {
       var item = format[match[1]] = format[match[1]] || {};
@@ -59,14 +60,14 @@ function streamDescription(sdp, base, source) {
   var found;
   candidates.some(function (candidate) {
     return candidate.payloads.some(function (id) {
-      if (candidate.format[id] && candidate.format[id].h264) { found = {id: +id, fmtp: candidate.format[id].fmtp || '', control: candidate.control}; return true; }
+      if (candidate.format[id] && candidate.format[id].encoding) { found = {id: +id, encoding: candidate.format[id].encoding, fmtp: candidate.format[id].fmtp || '', control: candidate.control}; return true; }
       return false;
     });
   });
-  if (!found || !found.control || found.control === '*') throw new Error('No supported H.264 video track (NVR advertises: ' + (advertised.join(', ') || 'none') + ')');
+  if (!found || !found.control || found.control === '*') throw new Error('No supported video track (NVR advertises: ' + (advertised.join(', ') || 'none') + ')');
   var packetization = /(?:^|;)\s*packetization-mode=(\d+)/.exec(found.fmtp);
   if (packetization && +packetization[1] > 1) throw new Error('Unsupported H.264 packetization mode');
-  var sets = /(?:^|;)\s*sprop-parameter-sets=([^;\s]+)/.exec(found.fmtp), sps, pps;
+  var sets = /(?:^|;)\s*sprop-parameter-sets=([^;\s]+)/.exec(found.fmtp), sps, pps, vps;
   if (sets) {
     sets[1].split(',').forEach(function (value) {
       if (value.length > 65536 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) throw new Error('Invalid SDP parameter set');
@@ -75,10 +76,23 @@ function streamDescription(sdp, base, source) {
       if ((nal[0] & 31) === 8) pps = nal;
     });
   }
+  if (found.encoding === 'H265') {
+    var don = /(?:^|;)\s*sprop-max-don-diff=(\d+)/.exec(found.fmtp);
+    if (don && +don[1]) throw new Error('HEVC decoding-order-number fields unsupported');
+    ['vps', 'sps', 'pps'].forEach(function (name, index) {
+      var match = new RegExp('(?:^|;)\\s*sprop-' + name + '=([^;\\s]+)').exec(found.fmtp);
+      if (!match) return;
+      var values = match[1].split(',');
+      if (values.length !== 1 || values[0].length > 65536 || !/^[A-Za-z0-9+/]+={0,2}$/.test(values[0])) throw new Error('Invalid HEVC SDP parameter set');
+      var nal = new Buffer(values[0], 'base64');
+      if (nal.length < 2 || ((nal[0] >>> 1) & 63) !== 32 + index) throw new Error('Invalid HEVC SDP NAL type');
+      if (index === 0) vps = nal; else if (index === 1) sps = nal; else pps = nal;
+    });
+  }
   var resolved = url.resolve(base, found.control), target = url.parse(resolved);
   if (target.protocol !== 'rtsp:' || target.hostname !== source.host || +(target.port || 554) !== source.port || target.auth
       || /[\r\n]/.test(resolved)) throw new Error('Cross-host RTSP track rejected');
-  return {payloadType: found.id, uri: resolved, sps: sps, pps: pps, sessionControl: sessionControl};
+  return {payloadType: found.id, encoding: found.encoding, uri: resolved, vps: vps, sps: sps, pps: pps, sessionControl: sessionControl};
 }
 function Rtsp(input, callbacks) {
   this.profile = profile(input); this.callbacks = callbacks; this.socket = null;
@@ -90,7 +104,7 @@ function Rtsp(input, callbacks) {
 Rtsp.prototype.fail = function (message) { if (!this.closed) { this.close(); this.callbacks.error(message); } };
 Rtsp.prototype.start = function () {
   var self = this;
-  this.deadline = setTimeout(function () { self.fail('NVR did not produce H.264 video within 20 seconds'); }, 20000);
+  this.deadline = setTimeout(function () { self.fail('NVR did not produce a video keyframe within 60 seconds'); }, 60000);
   this.socket = net.createConnection({host: this.profile.host, port: this.profile.port});
   this.socket.setTimeout(20000);
   this.socket.on('timeout', function () { self.fail('NVR connection timed out'); });
@@ -101,7 +115,8 @@ Rtsp.prototype.start = function () {
     self.request('DESCRIBE', self.uri, {Accept: 'application/sdp'}, function (response) {
       var base = response.headers['content-base'] || self.uri + '/';
       var track = streamDescription(response.body.toString('utf8'), base, self.profile);
-      self.video = new codec.H264({sps: track.sps, pps: track.pps, onInit: function (init) {
+      var Video = track.encoding === 'H265' ? codec.H265 : codec.H264;
+      self.video = new Video({vps: track.vps, sps: track.sps, pps: track.pps, onInit: function (init) {
         self.callbacks.init(init);
       }, onFragment: function (fragment) {
         clearTimeout(self.deadline);

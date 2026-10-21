@@ -1,6 +1,6 @@
 'use strict';
-// H.264 RTP -> fragmented MP4. ES5 / Node 4 for TizenBrew on 2017 TVs.
-// No decoding: the TV's MSE decoder handles the original H.264 substream.
+// H.264 / HEVC RTP -> fragmented MP4. ES5 / Node 4 for TizenBrew on 2017 TVs.
+// No decoding: the TV's MSE decoder handles the original compressed video.
 // Node 4.4 exposes an inherited TypedArray.from as Buffer.from, but calling it throws.
 // Buffer.alloc identifies the real modern Buffer API; Node 4 needs its constructor.
 function bytes(value) { return typeof Buffer.alloc === 'function' ? Buffer.from(value) : new Buffer(value); }
@@ -15,9 +15,9 @@ function full(type, version, flags) {
   return box.apply(null, [type, bytes([version, flags >>> 16, (flags >>> 8) & 255, flags & 255])]
     .concat(Array.prototype.slice.call(arguments, 3)));
 }
-function rbsp(nal) {
+function rbsp(nal, header) {
   var out = [], i;
-  for (i = 1; i < nal.length; i++) {
+  for (i = header || 1; i < nal.length; i++) {
     if (i >= 3 && nal[i] === 3 && nal[i - 1] === 0 && nal[i - 2] === 0) continue;
     out.push(nal[i]);
   }
@@ -66,19 +66,22 @@ function dimensions(sps) {
 }
 function initialization(sps, pps) {
   var size = dimensions(sps);
+  var config = box('avcC', bytes([1, sps[1], sps[2], sps[3], 255, 225]), u16(sps.length), sps, bytes([1]), u16(pps.length), pps);
+  return mp4Initialization(size, 'avc1', config, 'avc1.' + sps.slice(1, 4).toString('hex'));
+}
+function mp4Initialization(size, entry, config, name) {
   var matrix = Buffer.concat([u32(65536), u32(0), u32(0), u32(0), u32(65536), u32(0), u32(0), u32(0), u32(1073741824)]);
   var mvhd = full('mvhd', 0, 0, zero(8), u32(90000), u32(0), u32(65536), u16(256), zero(10), matrix, zero(24), u32(2));
   var tkhd = full('tkhd', 0, 7, zero(8), u32(1), zero(4), u32(0), zero(8), zero(8), matrix, u32(size.width * 65536), u32(size.height * 65536));
   var mdhd = full('mdhd', 0, 0, zero(8), u32(90000), u32(0), u16(21956), u16(0));
   var hdlr = full('hdlr', 0, 0, u32(0), bytes('vide'), zero(12), bytes('Video\0'));
-  var avcc = box('avcC', bytes([1, sps[1], sps[2], sps[3], 255, 225]), u16(sps.length), sps, bytes([1]), u16(pps.length), pps);
-  var avc1 = box('avc1', zero(6), u16(1), zero(16), u16(size.width), u16(size.height), u32(4718592), u32(4718592), u32(0), u16(1), zero(32), u16(24), u16(65535), avcc);
+  var avc1 = box(entry, zero(6), u16(1), zero(16), u16(size.width), u16(size.height), u32(4718592), u32(4718592), u32(0), u16(1), zero(32), u16(24), u16(65535), config);
   var stbl = box('stbl', full('stsd', 0, 0, u32(1), avc1), full('stts', 0, 0, u32(0)), full('stsc', 0, 0, u32(0)), full('stsz', 0, 0, u32(0), u32(0)), full('stco', 0, 0, u32(0)));
   var dinf = box('dinf', full('dref', 0, 0, u32(1), full('url ', 0, 1)));
   var minf = box('minf', full('vmhd', 0, 1, zero(8)), dinf, stbl);
   var trak = box('trak', tkhd, box('mdia', mdhd, hdlr, minf));
   return {data: Buffer.concat([box('ftyp', bytes('isom'), u32(512), bytes('isomiso6avc1mp41')), box('moov', mvhd, trak, box('mvex', full('trex', 0, 0, u32(1), u32(1), zero(12))))]),
-    codec: 'avc1.' + sps.slice(1, 4).toString('hex'), width: size.width, height: size.height};
+    codec: name, width: size.width, height: size.height};
 }
 function fragment(sequence, time, duration, sample, key) {
   var tfdt = full('tfdt', 1, 0, u32(Math.floor(time / 4294967296)), u32(time % 4294967296));
@@ -124,7 +127,15 @@ H264.prototype.rtp = function (packet, payloadType) {
   if (at >= end) throw new Error('Empty RTP payload');
   if (this.timestamp !== null && stamp !== this.timestamp && (this.parts.length || this.fu)) throw new Error('Incomplete H.264 frame');
   this.timestamp = stamp;
-  var data = packet.slice(at, end), type = data[0] & 31;
+  this.payload(packet.slice(at, end));
+  if (marker) {
+    if (this.fu) throw new Error('Incomplete video fragment');
+    if (this.parts.some(this.isSlice)) this.frame(stamp);
+    this.parts = []; this.partBytes = 0;
+  }
+};
+H264.prototype.payload = function (data) {
+  var type = data[0] & 31, at;
   if (type >= 1 && type <= 23) { if (this.fu) throw new Error('Incomplete H.264 fragment'); this.nal(data); }
   else if (type === 24) {
     if (this.fu) throw new Error('Incomplete H.264 fragment');
@@ -147,19 +158,18 @@ H264.prototype.rtp = function (packet, payloadType) {
     this.fu.push(data.slice(2));
     if (data[1] & 64) { var complete = Buffer.concat(this.fu); this.fu = null; this.nal(complete); }
   } else throw new Error('Unsupported H.264 RTP packetization');
-  if (marker) {
-    if (this.fu) throw new Error('Incomplete H.264 FU-A');
-    var hasSlice = this.parts.some(function (nal) { var t = nal[0] & 31; return t === 1 || t === 5; });
-    if (hasSlice) this.frame(stamp);
-    this.parts = []; this.partBytes = 0;
-  }
+};
+H264.prototype.isSlice = function (nal) { var t = nal[0] & 31; return t === 1 || t === 5; };
+H264.prototype.isKey = function (nal) { return (nal[0] & 31) === 5; };
+H264.prototype.makeInit = function () {
+  if (!this.sps || !this.pps) throw new Error('H.264 parameter sets missing');
+  return initialization(this.sps, this.pps);
 };
 H264.prototype.frame = function (stamp) {
-  var key = this.parts.some(function (nal) { return (nal[0] & 31) === 5; });
+  var key = this.parts.some(this.isKey);
   if (!this.started) {
     if (!key) return;
-    if (!this.sps || !this.pps) throw new Error('H.264 parameter sets missing');
-    this.onInit(initialization(this.sps, this.pps)); this.started = true;
+    this.onInit(this.makeInit()); this.started = true;
   }
   if (this.pending) {
     var duration = (stamp - this.pending.stamp) >>> 0;
@@ -171,4 +181,98 @@ H264.prototype.frame = function (stamp) {
   this.parts.forEach(function (nal) { parts.push(u32(nal.length), nal); });
   this.pending = {stamp: stamp, data: Buffer.concat(parts), key: key};
 };
-module.exports = {H264: H264, initialization: initialization, dimensions: dimensions, fragment: fragment, bytes: bytes};
+// RFC 7798 single-layer HEVC without decoding-order-number fields.
+function hevcInfo(sps) {
+  var r = new Bits(rbsp(sps, 2)), i, profiles = [], levels = [], constraints = [];
+  r.read(4); var layers = r.read(3), nested = r.read(1), profile = r.read(8), compatibility = r.read(32);
+  for (i = 0; i < 6; i++) constraints.push(r.read(8));
+  var level = r.read(8);
+  for (i = 0; i < layers; i++) { profiles.push(r.read(1)); levels.push(r.read(1)); }
+  if (layers) for (i = layers; i < 8; i++) r.read(2);
+  for (i = 0; i < layers; i++) {
+    if (profiles[i]) { r.read(32); r.read(32); r.read(24); }
+    if (levels[i]) r.read(8);
+  }
+  r.ue(); var chroma = r.ue(), separate = 0;
+  if (chroma > 3) throw new Error('Invalid HEVC chroma');
+  if (chroma === 3) separate = r.read(1);
+  var width = r.ue(), height = r.ue(), left = 0, right = 0, top = 0, bottom = 0;
+  if (r.read(1)) { left = r.ue(); right = r.ue(); top = r.ue(); bottom = r.ue(); }
+  var depthY = r.ue(), depthC = r.ue(); r.ue();
+  var all = r.read(1);
+  for (i = all ? 0 : layers; i <= layers; i++) {
+    r.ue(); if (r.ue() !== 0) throw new Error('HEVC reordered pictures unsupported; disable B frames'); r.ue();
+  }
+  var format = separate ? 0 : chroma;
+  width -= (left + right) * (format === 1 || format === 2 ? 2 : 1);
+  height -= (top + bottom) * (format === 1 ? 2 : 1);
+  if (width < 1 || height < 1 || width > 4096 || height > 2160 || depthY > 2 || depthC > 2) throw new Error('Unsupported HEVC dimensions or bit depth');
+  var reversed = 0;
+  for (i = 0; i < 32; i++) reversed = reversed * 2 + ((compatibility >>> i) & 1);
+  var suffix = constraints.slice(); while (suffix.length && suffix[suffix.length - 1] === 0) suffix.pop();
+  var name = 'hvc1.' + ['', 'A', 'B', 'C'][profile >>> 6] + (profile & 31) + '.' + reversed.toString(16).toUpperCase()
+    + '.' + (profile & 32 ? 'H' : 'L') + level + suffix.map(function (n) { return '.' + n.toString(16).toUpperCase(); }).join('');
+  return {width: width, height: height, profile: profile, compatibility: compatibility, constraints: constraints,
+    level: level, chroma: chroma, depthY: depthY, depthC: depthC, layers: layers, nested: nested, codec: name};
+}
+function hevcInitialization(vps, sps, pps) {
+  var info = hevcInfo(sps), arrays = [];
+  [vps, sps, pps].forEach(function (nal, i) {
+    if (nal.length > 65535) throw new Error('HEVC parameter set too large');
+    arrays.push(bytes([128 | (32 + i)]), u16(1), u16(nal.length), nal);
+  });
+  var config = box('hvcC', bytes([1, info.profile]), u32(info.compatibility), bytes(info.constraints), bytes([info.level]),
+    u16(61440), bytes([252, 252 | info.chroma, 248 | info.depthY, 248 | info.depthC]), u16(0),
+    bytes([((info.layers + 1) << 3) | (info.nested << 2) | 3, 3]), Buffer.concat(arrays));
+  return mp4Initialization(info, 'hvc1', config, info.codec);
+}
+function H265(options) { H264.call(this, options); this.vps = options.vps || null; }
+H265.prototype = Object.create(H264.prototype);
+H265.prototype.constructor = H265;
+H265.prototype.isSlice = function (nal) { return ((nal[0] >>> 1) & 63) < 32; };
+H265.prototype.isKey = function (nal) { var t = (nal[0] >>> 1) & 63; return t >= 16 && t <= 21; };
+H265.prototype.makeInit = function () {
+  if (!this.vps || !this.sps || !this.pps) throw new Error('HEVC parameter sets missing');
+  return hevcInitialization(this.vps, this.sps, this.pps);
+};
+H265.prototype.nal = function (nal) {
+  if (nal.length < 2 || (nal[0] & 129) || (nal[1] & 248) || !(nal[1] & 7)) throw new Error('Invalid or multilayer HEVC NAL');
+  var type = (nal[0] >>> 1) & 63;
+  if (type >= 32 && type <= 34) {
+    var name = ['vps', 'sps', 'pps'][type - 32];
+    if (this.started && this[name] && !this[name].equals(nal)) throw new Error('Stream format changed; reconnect');
+    this[name] = bytes(nal); return;
+  }
+  if (type > 40) throw new Error('Unsupported HEVC NAL');
+  this.partBytes += nal.length + 4;
+  if (this.partBytes > 2 * 1024 * 1024) throw new Error('Video frame exceeds memory limit');
+  this.parts.push(bytes(nal));
+};
+H265.prototype.payload = function (data) {
+  if (data.length < 2) throw new Error('Invalid HEVC payload');
+  var type = (data[0] >>> 1) & 63, at, length;
+  if (type < 48) { if (this.fu) throw new Error('Incomplete HEVC fragment'); this.nal(data); }
+  else if (type === 48) {
+    if (this.fu) throw new Error('Incomplete HEVC fragment');
+    at = 2;
+    while (at < data.length) {
+      if (at + 2 > data.length) throw new Error('Invalid HEVC aggregation');
+      length = data.readUInt16BE(at); at += 2;
+      if (length < 2 || at + length > data.length) throw new Error('Invalid HEVC aggregation');
+      this.nal(data.slice(at, at + length)); at += length;
+    }
+  } else if (type === 49) {
+    if (data.length < 4 || (data[2] & 192) === 192 || (data[2] & 63) >= 48) throw new Error('Invalid HEVC FU');
+    if (data[2] & 128) {
+      if (this.fu) throw new Error('Overlapping HEVC fragments');
+      this.fu = [bytes([(data[0] & 129) | ((data[2] & 63) << 1), data[1]])]; this.fuBytes = 2;
+    }
+    if (!this.fu) throw new Error('HEVC fragment start missing');
+    this.fuBytes += data.length - 3;
+    if (this.fuBytes > 2 * 1024 * 1024) throw new Error('Video frame exceeds memory limit');
+    this.fu.push(data.slice(3));
+    if (data[2] & 64) { var complete = Buffer.concat(this.fu); this.fu = null; this.nal(complete); }
+  } else throw new Error('Unsupported HEVC RTP packetization');
+};
+module.exports = {H264: H264, H265: H265, hevcInfo: hevcInfo, hevcInitialization: hevcInitialization,
+  initialization: initialization, dimensions: dimensions, fragment: fragment, bytes: bytes};
