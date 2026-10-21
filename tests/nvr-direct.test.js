@@ -22,6 +22,10 @@ for (const host of ['8.8.8.8','127.0.0.1','localhost','192.168.0.200.evil','192.
 for (const channel of [-1,65,1.2,'1']) assert.throws(()=>service.profile({...base,channel}));
 assert.equal(service.profile({...base,channel:0}).channel,0);
 assert.match(new service.Rtsp({...base,channel:0},{}).uri,/\/001$/);
+assert.match(new service.Rtsp({...base,stream:1},{}).uri,/\/101$/);
+assert.match(new service.Rtsp(base,{}).uri,/\/102$/);
+assert.throws(()=>service.profile({...base,stream:3}));
+assert.throws(()=>service.streamDescription('m=video 0 RTP/AVP 96\r\na=rtpmap:96 H265/90000\r\na=control:track1\r\n','rtsp://192.168.0.200/',base),/NVR advertises: H265/);
 assert.throws(()=>service.profile({...base,username:'viewer\r\nBad: value'}));
 assert.throws(()=>service.parseChallenge('Basic realm="nvr"'));
 assert.throws(()=>service.parseChallenge('Digest realm="nvr", nonce="abc", qop="auth-int"'));

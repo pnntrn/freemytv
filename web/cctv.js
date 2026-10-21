@@ -257,6 +257,9 @@ var CCTV = (function () {
     button(toolbar, t('Arrange'), arrange);
     if (profiles[current].mode === 'rtsp') {
       button(toolbar, t('Retry'), render);
+      button(toolbar, t(profiles[current].stream === 1 ? 'Main stream' : 'Substream'), function () {
+        profiles[current].stream = profiles[current].stream === 1 ? 2 : 1; render();
+      });
       button(toolbar, t('NVR mosaic (Channel Zero)'), function () { mosaic = !mosaic; expanded = 0; render(); });
     }
     button(toolbar, t('Previous'), function () { page = Math.max(0, page - 1); expanded = 0; render(); });
