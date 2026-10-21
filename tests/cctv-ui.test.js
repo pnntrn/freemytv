@@ -18,7 +18,8 @@ class Element {
   removeChild(child) { this.children.splice(this.children.indexOf(child),1); child.parentNode = null; }
   setAttribute(name,value) { this.attributes[name] = value; }
   removeAttribute(name) { delete this.attributes[name]; if (name === 'src') this.src = ''; }
-  focus() { document.activeElement = this; }
+  focus() { if(document.activeElement&&document.activeElement!==this)document.activeElement.blur();document.activeElement = this;if(this.onfocus)this.onfocus(); }
+  blur() { if(document.activeElement===this)document.activeElement=document.body;if(this.onblur)this.onblur(); }
   click() { if (this.onclick) this.onclick(); }
   play() { this.playing = true; return {catch() {}}; }
   pause() { this.playing = false; }
@@ -48,7 +49,8 @@ function button(text) {
   assert.ok(found, 'Button exists: ' + text); return found;
 }
 function key(code) {
-  events.keydown({keyCode:code,target:document.activeElement,preventDefault(){},stopImmediatePropagation(){}});
+  const event={keyCode:code,target:document.activeElement,preventDefault(){this.prevented=true;},stopImmediatePropagation(){}};
+  events.keydown(event);return event;
 }
 ctx.CCTV.open(); assert.equal(ctx.CCTV.active,true);
 button('Grid 4').click(); button('12 (3×4)').click();
@@ -73,6 +75,20 @@ assert.equal(timers.size,0,'Close clears outstanding connection timers');
 ctx.CCTV.open(); button('VIGI via VPN').click(); button('Configure NVR').click();
 button('Direct RTSP on TV (TizenBrew)').click();
 inputs=root().querySelectorAll('input');
+assert.equal(document.activeElement,inputs[0]);assert.equal(inputs[0].readOnly,true);
+key(40);assert.equal(document.activeElement,inputs[1]);
+key(40);assert.equal(document.activeElement,inputs[2]);
+key(40);assert.equal(document.activeElement,inputs[3]);
+assert.equal(key(13).prevented,undefined,'OK editing must not cancel native IME');
+assert.equal(inputs[3].readOnly,false);
+key(40);assert.equal(document.activeElement,inputs[3],'Arrows stay in the keyboard while editing');
+assert.equal(key(229).prevented,undefined,'IME text entry retains native default');
+key(65376);assert.equal(document.activeElement,inputs[4]);assert.equal(inputs[3].readOnly,true);
+key(13);key(10009);assert.equal(ctx.CCTV.active,true,'Back dismisses editing without closing CCTV');
+assert.equal(document.activeElement,inputs[4]);assert.equal(inputs[4].readOnly,true);
+key(40);assert.equal(document.activeElement,button('Save · Session only'));
+key(38);assert.equal(document.activeElement,inputs[4]);
+key(13);key(65385);assert.equal(ctx.CCTV.active,true);assert.equal(inputs[4].readOnly,true);
 inputs[0].value='192.168.0.200';inputs[1].value='554';inputs[2].value='viewer';inputs[3].value='test-only-password';inputs[4].value='16';
 button('Save · Session only').click();
 assert.equal(directCalls.length,1,'Direct mode starts with a single substream');

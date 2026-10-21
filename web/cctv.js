@@ -55,10 +55,28 @@ var CCTV = (function () {
     catch (e) { return CctvPolicy.order('', profiles[current].channels); }
   }
   function saveLayout() { Prefs.set('cctvLayout', {rows: rows, columns: columns, orders: orders}); }
-  var videos = [], timeouts = [], directPlayers = [], previousFocus;
+  var videos = [], timeouts = [], directPlayers = [], previousFocus, editingInput = null, lastFocused = null;
   function t(s) { return I18N.tr(s, s, s); }
   function node(tag, parent, text) {
-    var n = document.createElement(tag); if (text) n.textContent = text; if (parent) parent.appendChild(n); return n;
+    var n = document.createElement(tag); if (text) n.textContent = text; if (parent) parent.appendChild(n);
+    if (tag === 'input' || tag === 'button') n.onfocus = function () { lastFocused = n; };
+    if (tag === 'input') {
+      // Navigate without opening the TV keyboard. OK/pointer click explicitly starts editing.
+      n.readOnly = true;
+      n.onblur = function () { n.readOnly = true; if (editingInput === n) editingInput = null; };
+      n.onclick = function () { beginEdit(n); };
+    }
+    return n;
+  }
+  function beginEdit(input) {
+    if (editingInput === input) return;
+    input.blur(); input.readOnly = false; editingInput = input; input.focus();
+  }
+  function finishEdit(input, advance) {
+    input.readOnly = true; editingInput = null; input.blur();
+    var all = focusable(), at = -1;
+    for (var i = 0; i < all.length; i++) if (all[i] === input) at = i;
+    if (at >= 0) all[Math.min(all.length - 1, at + (advance ? 1 : 0))].focus();
   }
   function stop() {
     for (var d = 0; d < directPlayers.length; d++) directPlayers[d].close(); directPlayers = [];
@@ -70,7 +88,7 @@ var CCTV = (function () {
     videos = [];
   }
   function close() {
-    stop(); active = false;
+    stop(); active = false; editingInput = null; lastFocused = null;
     for (var i = 0; i < profiles.length; i++) { profiles[i].password = ''; profiles[i].username = ''; profiles[i].host = ''; }
     if (root && root.parentNode) root.parentNode.removeChild(root); root = null;
     if (previousFocus && previousFocus.focus) previousFocus.focus();
@@ -82,12 +100,18 @@ var CCTV = (function () {
   function key(e) {
     if (!active) return;
     var k = e.keyCode, target = e.target || document.activeElement, input = target && target.tagName === 'INPUT';
+    if (input && (editingInput === target || k === 65376 || k === 65385)) {
+      if (k === 65376 || k === 65385 || k === 10009 || k === 461 || k === 27) finishEdit(target, k === 65376);
+      // IME arrows, digits and text must retain their native behavior. Back only exits editing.
+      e.stopImmediatePropagation(); return;
+    }
+    if (input && k === 13) { beginEdit(target); e.stopImmediatePropagation(); return; }
     if (k === 10009 || k === 461 || k === 27) {
       if (expanded || mosaic) { expanded = 0; mosaic = false; render(); } else close();
-    } else if (input) { e.stopImmediatePropagation(); return; }
-    else if (k >= 37 && k <= 40) {
+    } else if (k >= 37 && k <= 40) {
       var all = focusable(), at = -1, i;
       for (i = 0; i < all.length; i++) if (all[i] === document.activeElement) at = i;
+      if (at < 0) for (i = 0; i < all.length; i++) if (all[i] === lastFocused) at = i;
       var columnCount = expanded ? 1 : columns;
       var inGrid = target && target.className === 'cctv-tile';
       var delta = k === 37 ? -1 : k === 39 ? 1 : k === 38 ? -(inGrid ? columnCount : 1) : (inGrid ? columnCount : 1);
@@ -98,8 +122,9 @@ var CCTV = (function () {
     e.preventDefault(); e.stopImmediatePropagation();
   }
   function configure() {
-    stop(); root.innerHTML = '';
+    stop(); editingInput = null; root.innerHTML = '';
     node('h2', root, t(profiles[current].title));
+    node('p', root, t('Up/Down: choose field · OK: edit · Keyboard Done: next field'));
     if (current === 0) {
       button(root, t('HLS gateway'), function () { profiles[0].mode = 'hls'; configure(); });
       button(root, t('Direct RTSP on TV (TizenBrew)'), function () {
@@ -115,7 +140,7 @@ var CCTV = (function () {
     input.placeholder = 'http://192.168.1.2:8080/camera/{channel}/index.m3u8';
     input.autocomplete = 'off'; input.spellcheck = false;
     var countLabel = node('label', form, t('Channels')), count = node('input', countLabel);
-    count.type = 'number'; count.min = '1'; count.max = '64'; count.value = profiles[current].channels;
+    count.type = 'text'; count.setAttribute('inputmode', 'numeric'); count.value = profiles[current].channels;
     var error = node('p', form); error.setAttribute('role', 'alert');
     button(form, t('Save') + ' · ' + t('Session only'), function () {
       try {
@@ -136,7 +161,10 @@ var CCTV = (function () {
     var form = node('div', root); form.className = 'cctv-form';
     function field(name, value, type) {
       var label = node('label', form, t(name)), input = node('input', label);
-      input.type = type || 'text'; input.value = value; input.autocomplete = 'off'; input.spellcheck = false; return input;
+      // 2016/2017 Samsung firmware has known number-input IME issues; validate numeric text on save.
+      input.type = type === 'number' ? 'text' : type || 'text';
+      if (type === 'number') input.setAttribute('inputmode', 'numeric');
+      input.value = value; input.autocomplete = 'off'; input.spellcheck = false; return input;
     }
     var host = field('Private IPv4 address', p.host || ''), port = field('Port', p.port || 554, 'number');
     var username = field('Username', p.username || ''), password = field('Password', '', 'password');
@@ -191,9 +219,9 @@ var CCTV = (function () {
       });
     })(presets[i]);
     var rl = node('label', root, t('Rows')), ri = node('input', rl);
-    ri.type = 'number'; ri.min = '1'; ri.max = '4'; ri.value = rows;
+    ri.type = 'text'; ri.setAttribute('inputmode', 'numeric'); ri.value = rows;
     var cl = node('label', root, t('Columns')), ci = node('input', cl);
-    ci.type = 'number'; ci.min = '1'; ci.max = '4'; ci.value = columns;
+    ci.type = 'text'; ci.setAttribute('inputmode', 'numeric'); ci.value = columns;
     var err = node('p', root);
     button(root, t('Custom'), function () {
       try { size = CctvPolicy.grid(+ri.value, +ci.value); rows = +ri.value; columns = +ci.value;
