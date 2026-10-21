@@ -116,7 +116,7 @@ var NvrDirect = (function () {
       if (error) { fail(error); return; }
       token = value;
       xhr = request('POST', '/stream?client=' + token,
-        {host: profile.host, port: profile.port, username: profile.username, password: profile.password, channel: channel}, false,
+        {host: profile.host, port: profile.port, username: profile.username, password: profile.password, channel: channel, stream: profile.stream === 1 ? 1 : 2}, false,
         function (error, data) {
           if (active && error && error.message === 'Expired local client' && !retried) {
             if (client === token) client = '';
