@@ -170,6 +170,12 @@ var CCTV = (function () {
     var username = field('Username', p.username || ''), password = field('Password', '', 'password');
     password.placeholder = p.password ? t('Leave blank to keep saved password') : '';
     var channels = field('Channels', p.channels || 16, 'number');
+    var visibility = button(form, t('Show password'), function () {
+      var show = password.type === 'password'; password.type = show ? 'text' : 'password';
+      visibility.textContent = t(show ? 'Hide password' : 'Show password');
+      visibility.setAttribute('aria-pressed', show ? 'true' : 'false');
+    });
+    visibility.setAttribute('aria-pressed', 'false');
     var error = node('p', form); error.setAttribute('role', 'alert');
     button(form, t('Save') + ' · ' + t('Session only'), function () {
       var count = +channels.value, number = +port.value;

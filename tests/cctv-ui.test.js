@@ -86,10 +86,15 @@ assert.equal(key(229).prevented,undefined,'IME text entry retains native default
 key(65376);assert.equal(document.activeElement,inputs[4]);assert.equal(inputs[3].readOnly,true);
 key(13);key(10009);assert.equal(ctx.CCTV.active,true,'Back dismisses editing without closing CCTV');
 assert.equal(document.activeElement,inputs[4]);assert.equal(inputs[4].readOnly,true);
+key(40);assert.equal(document.activeElement,button('Show password'));
 key(40);assert.equal(document.activeElement,button('Save · Session only'));
-key(38);assert.equal(document.activeElement,inputs[4]);
+key(38);key(38);assert.equal(document.activeElement,inputs[4]);
 key(13);key(65385);assert.equal(ctx.CCTV.active,true);assert.equal(inputs[4].readOnly,true);
 inputs[0].value='192.168.0.200';inputs[1].value='554';inputs[2].value='viewer';inputs[3].value='test-only-password';inputs[4].value='16';
+assert.equal(inputs[3].type,'password');button('Show password').click();
+assert.equal(inputs[3].type,'text');assert.equal(inputs[3].value,'test-only-password');
+assert.equal(button('Hide password').attributes['aria-pressed'],'true');button('Hide password').click();
+assert.equal(inputs[3].type,'password');assert.equal(inputs[3].value,'test-only-password');
 button('Save · Session only').click();
 assert.equal(directCalls.length,1,'Direct mode starts with a single substream');
 assert.equal(directCalls[0].channel,1);
