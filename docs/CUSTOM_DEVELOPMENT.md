@@ -44,9 +44,15 @@ update a previous installation. Do not use those artifacts for permanent deploym
 For permanent Android updates, create and back up your own signing keystore outside GitHub.
 Add repository Actions secrets `APK_KEYSTORE_BASE64`, `APK_STORE_PASSWORD`, `APK_KEY_PASSWORD`,
 and `APK_KEY_ALIAS`. Never put these values in source code, issues, PRs, or chat.
-The release job fails rather than silently creating a temporary key when secrets are missing.
-A `custom-v*` tag runs the build and produces a **draft** GitHub release with APK, unsigned WGT,
-and SHA256SUMS. Review hardware results before publishing it. Samsung signing is separate.
+Change `release/version.txt` on main (or run the release workflow manually) to publish a
+versioned experimental release with build details and SHA256SUMS. Matching `custom-v*` tags
+are also supported. Existing release assets are never overwritten. All tests must pass first.
+With no Android secrets, the clearly named `FreeMyTV-test.apk` uses a temporary key;
+with all four secrets, `FreeMyTV.apk` uses the persistent key. Partial secrets fail the build.
+Samsung's unsigned WGT is published independently of Android signing configuration.
+The installer reads GitHub's latest non-prerelease endpoint, so the experimental status is
+stated in the release title/notes rather than hiding the release from that endpoint.
+Publishing is not hardware certification. See release/NOTES.md for platform limitations.
 
 ## Implemented stages and remaining verification
 

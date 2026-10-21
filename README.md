@@ -104,7 +104,7 @@ You need a Samsung TV from 2017 or newer (Tizen 3+) and a computer on the same W
 
 1. **On the TV**, open **Apps** and type `1 2 3 4 5` on the remote. Turn **Developer mode** on, type your computer's IP address in **Host PC IP**, and restart the TV.
 2. **On your computer**, download [TizenBrew Installer](https://github.com/reisxd/TizenBrewInstaller/releases/latest), the community's installer for Samsung TVs, open it and connect to your TV.
-3. **Install from GitHub:** type `simbasjungles/free-my-tv`. On 2023 and newer TVs it asks you to sign in to your Samsung account once, to sign the app for your TV.
+3. **Install from GitHub:** type `pnntrn/freemytv` for this custom fork. The release WGT is unsigned. The installer re-signs on Tizen 7+; older-TV signature acceptance and actual installation are unverified. If signing is rejected, use the local signing steps in [custom installation](docs/INSTALL_CUSTOM.md).
 4. **Straight to it:** in the TV's settings, under Start Screen Options, turn on **Autorun Last App**: the TV turns on into Free My TV.
 
 This build takes your city from the TV's time zone. For your exact city and the trending picks, build it with your own `config.properties` and [TMDB key](#the-tmdb-key): open the folder in Claude Code and say *"Install Free My TV on my Samsung TV at 192.168.1.50. I live in Lisbon."* It sets up Samsung's tools, and on 2023 and newer TVs you sign in to your Samsung account in the browser to make the certificate.
