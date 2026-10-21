@@ -79,6 +79,9 @@ if(process.argv[1]&&fileURLToPath(import.meta.url)===process.argv[1]){
       if(!/^[A-Za-z0-9.]+$/.test(args[0])||!/^\/home\/owner\/share\/tmp\/sdk_tools\/[A-Za-z0-9_.-]+\.wgt$/.test(args[1]))throw Error('Invalid package target');
       const result=(await client.stream('shell:0 vd_appinstall '+args[0]+' '+args[1])).toString();console.log(result);
       if(!/install.*(?:success|complete)|spend time/i.test(result)||/fail|error|denied/i.test(result))process.exitCode=1;
-    }else throw Error('Use sysinfo, capability, push or install');
+    }else if(action==='debug'){
+      if(!/^[A-Za-z0-9.]+$/.test(args[0]))throw Error('Invalid application ID');
+      console.log((await client.stream('shell:0 debug '+args[0]+' 0')).toString());
+    }else throw Error('Use sysinfo, capability, push, install or debug');
   }catch(error){console.error(error.message);process.exitCode=1;}finally{if(client)client.close();}
 }
