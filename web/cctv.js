@@ -1,6 +1,6 @@
-/* CCTV for Tizen/webOS: private HLS gateway only. No credentials or stream URLs are persisted.
- * Older TV browsers cannot play NVR RTSP in a video element. The gateway remains inside LAN/VPN.
- * ES5 is intentional for Tizen 3. Decode capacity and HLS authentication need hardware tests.
+/* CCTV: private HLS, or direct H.264 RTSP via the on-TV TizenBrew service.
+ * Raw RTSP cannot be assigned to a video element. The local Node service remuxes to MSE.
+ * Credentials are session-only. ES5 is intentional for Tizen 3. Decoder limits need hardware tests.
  */
 var CctvPolicy = (function () {
   'use strict';
@@ -45,7 +45,7 @@ var CctvPolicy = (function () {
 var CCTV = (function () {
   'use strict';
   var profiles = [{title: 'Hikvision LAN', template: '', channels: 32}, {title: 'VIGI via VPN', template: '', channels: 16}];
-  var root, toolbar, tiles, state, current = 0, page = 0, size = 4, rows = 2, columns = 2, expanded = 0, active = false;
+  var root, toolbar, tiles, state, current = 0, page = 0, size = 4, rows = 2, columns = 2, expanded = 0, active = false, mosaic = false;
   var layout = typeof Prefs !== 'undefined' && Prefs.cctvLayout ? Prefs.cctvLayout() : {};
   layout = layout && typeof layout === 'object' ? layout : {};
   var orders = layout.orders instanceof Array ? layout.orders : ['', ''];
@@ -55,12 +55,13 @@ var CCTV = (function () {
     catch (e) { return CctvPolicy.order('', profiles[current].channels); }
   }
   function saveLayout() { Prefs.set('cctvLayout', {rows: rows, columns: columns, orders: orders}); }
-  var videos = [], timeouts = [], previousFocus;
+  var videos = [], timeouts = [], directPlayers = [], previousFocus;
   function t(s) { return I18N.tr(s, s, s); }
   function node(tag, parent, text) {
     var n = document.createElement(tag); if (text) n.textContent = text; if (parent) parent.appendChild(n); return n;
   }
   function stop() {
+    for (var d = 0; d < directPlayers.length; d++) directPlayers[d].close(); directPlayers = [];
     for (var i = 0; i < timeouts.length; i++) clearTimeout(timeouts[i]); timeouts = [];
     for (var j = 0; j < videos.length; j++) {
       videos[j].onerror = videos[j].onloadeddata = null;
@@ -70,6 +71,7 @@ var CCTV = (function () {
   }
   function close() {
     stop(); active = false;
+    for (var i = 0; i < profiles.length; i++) { profiles[i].password = ''; profiles[i].username = ''; profiles[i].host = ''; }
     if (root && root.parentNode) root.parentNode.removeChild(root); root = null;
     if (previousFocus && previousFocus.focus) previousFocus.focus();
   }
@@ -81,7 +83,7 @@ var CCTV = (function () {
     if (!active) return;
     var k = e.keyCode, target = e.target || document.activeElement, input = target && target.tagName === 'INPUT';
     if (k === 10009 || k === 461 || k === 27) {
-      if (expanded) { expanded = 0; render(); } else close();
+      if (expanded || mosaic) { expanded = 0; mosaic = false; render(); } else close();
     } else if (input) { e.stopImmediatePropagation(); return; }
     else if (k >= 37 && k <= 40) {
       var all = focusable(), at = -1, i;
@@ -98,6 +100,14 @@ var CCTV = (function () {
   function configure() {
     stop(); root.innerHTML = '';
     node('h2', root, t(profiles[current].title));
+    if (current === 0) {
+      button(root, t('HLS gateway'), function () { profiles[0].mode = 'hls'; configure(); });
+      button(root, t('Direct RTSP on TV (TizenBrew)'), function () {
+        profiles[0].mode = 'rtsp'; if (!profiles[0].host) { profiles[0].channels = 16; orders[0] = ''; }
+        rows = 1; columns = 1; size = 1; mosaic = false; configure();
+      });
+    }
+    if (profiles[current].mode === 'rtsp') { configureDirect(); return; }
     node('p', root, t('Use HLS over LAN/VPN. Raw RTSP is not supported here.'));
     var form = node('div', root); form.className = 'cctv-form';
     var lbl = node('label', form, t('Private HLS gateway URL template'));
@@ -120,15 +130,49 @@ var CCTV = (function () {
     });
     button(form, t('Cancel'), render); input.focus();
   }
+  function configureDirect() {
+    var p = profiles[current];
+    node('p', root, t('Runs on this TV through TizenBrew. Start with one H.264 substream. No computer relay.'));
+    var form = node('div', root); form.className = 'cctv-form';
+    function field(name, value, type) {
+      var label = node('label', form, t(name)), input = node('input', label);
+      input.type = type || 'text'; input.value = value; input.autocomplete = 'off'; input.spellcheck = false; return input;
+    }
+    var host = field('Private IPv4 address', p.host || ''), port = field('Port', p.port || 554, 'number');
+    var username = field('Username', p.username || ''), password = field('Password', '', 'password');
+    password.placeholder = p.password ? t('Leave blank to keep saved password') : '';
+    var channels = field('Channels', p.channels || 16, 'number');
+    var error = node('p', form); error.setAttribute('role', 'alert');
+    button(form, t('Save') + ' · ' + t('Session only'), function () {
+      var count = +channels.value, number = +port.value;
+      if (!CctvPolicy.privateAddress(host.value) || !/^[0-9]+$/.test(port.value) || number < 1 || number > 65535
+          || !/^[0-9]+$/.test(channels.value) || count < 1 || count > 64 || !username.value
+          || /[\x00-\x1f\x7f]/.test(username.value + password.value)) { error.textContent = t('Check private NVR address, port, account and channel count.'); return; }
+      if (p.channels !== count) orders[current] = '';
+      p.host = host.value; p.port = number; p.username = username.value;
+      if (password.value) p.password = password.value;
+      p.password = p.password || ''; password.value = ''; p.channels = count;
+      page = 0; expanded = 0; mosaic = false; render();
+    });
+    button(form, t('Cancel'), function () { password.value = ''; render(); }); host.focus();
+  }
   function cell(channel, count) {
     var tile = node('button', tiles); tile.className = 'cctv-tile'; tile.type = 'button';
-    tile.style.width = ((100 / (expanded ? 1 : columns)) - 1) + '%';
-    tile.style.height = ((100 / (expanded ? 1 : rows)) - 2) + '%';
+    tile.style.width = ((100 / (expanded || mosaic ? 1 : columns)) - 1) + '%';
+    tile.style.height = ((100 / (expanded || mosaic ? 1 : rows)) - 2) + '%';
     tile.setAttribute('aria-label', t('Channel ') + channel);
-    tile.onclick = function () { expanded = expanded ? 0 : channel; render(); };
-    if (!channel) { tile.textContent = t('Empty'); return; }
+    tile.onclick = function () { if (!mosaic) { expanded = expanded ? 0 : channel; render(); } };
+    if (!channel && !mosaic) { tile.textContent = t('Empty'); return; }
     var video = node('video', tile); video.muted = true; video.autoplay = true; video.setAttribute('playsinline', '');
     var status = node('span', tile, t('Channel ') + channel + ' · ' + t('Connecting…'));
+    if (profiles[current].mode === 'rtsp') {
+      var title = mosaic ? t('NVR mosaic (Channel Zero)') : t('Channel ') + channel;
+      videos.push(video);
+      directPlayers.push(NvrDirect.play(video, profiles[current], channel, function (message, failed) {
+        status.textContent = title + (failed ? ' · ' + t(message) : '');
+      }));
+      return;
+    }
     video.onerror = function () { status.textContent = t('Stream unavailable. Check VPN, credentials and codec.'); };
     video.onloadeddata = function () { clearTimeout(timer); status.textContent = t('Channel ') + channel; };
     var timer = setTimeout(function () { video.onerror(); try { video.pause(); video.removeAttribute('src'); video.load(); } catch (e) {} }, 20000);
@@ -143,7 +187,7 @@ var CCTV = (function () {
     var presets = [[1,1],[2,2],[3,3],[3,4],[4,4]];
     for (var i = 0; i < presets.length; i++) (function (p) {
       button(root, (p[0]*p[1]) + ' (' + p[0] + '×' + p[1] + ')', function () {
-        rows = p[0]; columns = p[1]; size = rows * columns; page = 0; expanded = 0; saveLayout(); render();
+        rows = p[0]; columns = p[1]; size = rows * columns; page = 0; expanded = 0; mosaic = false; saveLayout(); render();
       });
     })(presets[i]);
     var rl = node('label', root, t('Rows')), ri = node('input', rl);
@@ -153,7 +197,7 @@ var CCTV = (function () {
     var err = node('p', root);
     button(root, t('Custom'), function () {
       try { size = CctvPolicy.grid(+ri.value, +ci.value); rows = +ri.value; columns = +ci.value;
-        page = 0; expanded = 0; saveLayout(); render();
+        page = 0; expanded = 0; mosaic = false; saveLayout(); render();
       } catch (e) { err.textContent = '1–4'; }
     });
     button(root, t('Back'), render); root.querySelector('button').focus();
@@ -173,20 +217,25 @@ var CCTV = (function () {
   function render() {
     if (!active) return; stop(); root.innerHTML = '';
     toolbar = node('div', root); toolbar.className = 'cctv-toolbar';
-    button(toolbar, t(profiles[current].title), function () { current = 1 - current; page = 0; expanded = 0; render(); });
+    button(toolbar, t(profiles[current].title), function () { current = 1 - current; page = 0; expanded = 0; mosaic = false; render(); });
     button(toolbar, t('Configure NVR'), configure);
     button(toolbar, t('Grid') + ' ' + size, chooseGrid);
     button(toolbar, t('Arrange'), arrange);
+    if (profiles[current].mode === 'rtsp') {
+      button(toolbar, t('Retry'), render);
+      button(toolbar, t('NVR mosaic (Channel Zero)'), function () { mosaic = !mosaic; expanded = 0; render(); });
+    }
     button(toolbar, t('Previous'), function () { page = Math.max(0, page - 1); expanded = 0; render(); });
     button(toolbar, t('Next'), function () { page = Math.min(Math.ceil(ordered().length / size) - 1, page + 1); expanded = 0; render(); });
     button(toolbar, t('Close'), close);
     state = node('p', root, t('Private LAN or VPN only.') + ' · ' + t('Page ') + (page + 1) + ' · ' + t('Session only'));
     tiles = node('div', root); tiles.className = 'cctv-tiles';
-    if (!profiles[current].template) node('p', tiles, t('Use HLS over LAN/VPN. Raw RTSP is not supported here.'));
+    if (profiles[current].mode === 'rtsp' ? !profiles[current].host : !profiles[current].template)
+      node('p', tiles, t('Configure NVR to connect. Direct RTSP requires the FreeMyTV TizenBrew service.'));
     else {
-      var count = expanded ? 1 : size;
+      var count = expanded || mosaic ? 1 : size;
       for (var i = 0; i < count; i++) {
-        var ch = expanded || ordered()[page * size + i] || 0;
+        var ch = mosaic ? 0 : expanded || ordered()[page * size + i] || 0;
         cell(ch, count);
       }
     }

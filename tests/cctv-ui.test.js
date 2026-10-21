@@ -2,7 +2,7 @@
 // Component-level DOM harness: verifies routing, resources and persisted-data boundaries.
 // This does not emulate Samsung media decoders, CSS rendering or a real TV remote.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
-const events = {}, saved = {}, timers = new Map(); let timerID = 0;
+const events = {}, saved = {}, timers = new Map(), directCalls = []; let timerID = 0;
 let document;
 class Element {
   constructor(tag) {
@@ -34,6 +34,10 @@ document = {createElement: tag => new Element(tag), activeElement:null, hidden:f
   addEventListener(name,listener) { events[name] = listener; }};
 document.body = new Element('body');
 const ctx = {document, window:{}, console, I18N:{tr:(pt,en)=>en},
+  NvrDirect:{play(video,profile,channel,report){
+    const call={profile:{...profile},channel,closed:false};directCalls.push(call);
+    report('',false);return {close(){call.closed=true;}};
+  }},
   Prefs:{cctvLayout:()=>({rows:2,columns:2,orders:['','']}),set:(key,value)=>{saved[key]=value;}},
   setTimeout(fn) { const id = ++timerID; timers.set(id,fn); return id; },
   clearTimeout(id) { timers.delete(id); }};
@@ -66,4 +70,20 @@ document.hidden=false; events.visibilitychange();
 button('Hikvision LAN').click(); assert.equal(root().querySelectorAll('video').length,0);
 button('Close').click(); assert.equal(ctx.CCTV.active,false); assert.equal(document.body.children.length,0);
 assert.equal(timers.size,0,'Close clears outstanding connection timers');
+ctx.CCTV.open(); button('VIGI via VPN').click(); button('Configure NVR').click();
+button('Direct RTSP on TV (TizenBrew)').click();
+inputs=root().querySelectorAll('input');
+inputs[0].value='192.168.0.200';inputs[1].value='554';inputs[2].value='viewer';inputs[3].value='test-only-password';inputs[4].value='16';
+button('Save · Session only').click();
+assert.equal(directCalls.length,1,'Direct mode starts with a single substream');
+assert.equal(directCalls[0].channel,1);
+button('NVR mosaic (Channel Zero)').click();assert.equal(directCalls[0].closed,true);assert.equal(directCalls.at(-1).channel,0);
+button('Grid 1').click();button('16 (4×4)').click();
+assert.equal(root().querySelectorAll('video').length,16);
+assert.deepEqual(directCalls.slice(-16).map(c=>c.channel),Array.from({length:16},(_,i)=>i+1));
+button('Close').click();assert.ok(directCalls.every(c=>c.closed));
+assert.ok(!JSON.stringify(saved).includes('test-only-password'));
+assert.ok(!JSON.stringify(saved).includes('192.168.0.200'));
+ctx.CCTV.open();assert.equal(root().querySelectorAll('video').length,0,'Closing CCTV forgets direct connection credentials');
+button('Close').click();
 console.log('CCTV component navigation, custom layout, lifecycle and session-data tests passed');

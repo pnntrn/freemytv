@@ -8,6 +8,8 @@
 > Tizen HLS viewer, 12/16/custom camera layouts and settings shortcuts.
 > See [custom installation and hardware limits](docs/INSTALL_CUSTOM.md) and
 > [build/upstream automation](docs/CUSTOM_DEVELOPMENT.md). TV/NVR compatibility is not hardware-verified.
+> Experimental: [direct Hikvision RTSP inside FreeMyTV through an on-TV TizenBrew service](docs/TIZEN_DIRECT_RTSP.md).
+> This needs the module service; installing the ordinary WGT does not add direct RTSP.
 
 **A fast, ad-free home screen for Google TV, LG and Samsung TVs.**
 

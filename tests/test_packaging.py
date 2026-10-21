@@ -59,6 +59,8 @@ class PackagingTests(unittest.TestCase):
             metadata = json.loads(package.read("package.json"))
             self.assertEqual(metadata["packageType"], "app")
             self.assertIn(metadata["appPath"], package.namelist())
+            self.assertIn(metadata["serviceFile"], package.namelist())
+            self.assertIn("app/nvr-direct.js", package.namelist())
             self.assertIn("app/cctv.js", package.namelist())
             self.assertNotIn(b"password", package.read("app/config.js"))
 
