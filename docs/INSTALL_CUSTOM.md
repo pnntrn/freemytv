@@ -42,7 +42,7 @@ Hikvision substream starting point: /Streaming/Channels/{channel}02
 VIGI substream starting point: /ch{channel}/sub/av_stream
 These are editable, firmware-dependent templates; verify against the NVR manual and VLC.
 For another compatible single IP camera, set Channels=1 and its exact relative path, such as
-/stream1. This is a generic RTSP adapter, not every vendor's proprietary/cloud camera protocol.
+/stream1. Multi-channel query templates such as /cam/realmonitor?channel={channel}&subtype=1 are also accepted. This is a generic RTSP adapter, not every vendor's proprietary/cloud camera protocol.
 There is no ONVIF discovery or Hik-Connect/VIGI Cloud SDK integration.
 
 Grid includes 1, 4, 9, 12 and 16 cells, plus custom 1–4 rows and 1–4 columns.

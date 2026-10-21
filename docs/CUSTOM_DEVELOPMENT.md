@@ -67,4 +67,4 @@ Do not expose NVR RTSP, HTTP, management or ONVIF ports to the Internet.
 Use OpenWrt VPN routing for VIGI remote access. Do not configure router changes without actual
 network details. Use a least-privilege viewer account for cameras rather than the NVR admin account.
 Tizen simultaneous decode limits, codec support, RTSP authentication and VPN reachability require
-real TV/NVR tests. A private LAN/VPN stream gateway may be necessary; that decision is not verified.
+real TV/NVR tests. The current Tizen viewer requires a private HLS gateway; one has not been configured.

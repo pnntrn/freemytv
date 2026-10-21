@@ -23,6 +23,10 @@ final class NvrProfileTest {
         reject(() -> NvrLayout.order("1,",32)); reject(() -> NvrLayout.order("-1",32));
         NvrProfile camera = new NvrProfile("10.0.0.1",554,"","",1,"/stream1");
         if (!camera.channelPath(1).equals("/stream1")) throw new AssertionError("generic camera");
+        NvrProfile query = new NvrProfile("10.0.0.1",554,"","",16,"/cam/realmonitor?channel={channel}&subtype=1");
+        if (!query.channelPath(12).equals("/cam/realmonitor?channel=12&subtype=1")) throw new AssertionError("generic query path");
+        reject(() -> new NvrProfile("10.0.0.1",554,"","",1,"/stream1#fragment"));
+        reject(() -> new NvrProfile("10.0.0.1",554,"","",1,"/stream1%0d%0aHeader"));
         System.out.println("NVR input and channel boundary checks passed");
     }
     private static void reject(Runnable fn) {

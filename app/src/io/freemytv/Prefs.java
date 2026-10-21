@@ -36,6 +36,7 @@ final class Prefs {
     static void init(Context c) {
         app = c.getApplicationContext();
         migrateKeys();   // before anything reads the button choices
+        Thai.init(c);
         Ui.applyLanguage();   // the language picked on the TV, now that it can be read
     }
 
