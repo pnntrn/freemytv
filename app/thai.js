@@ -182,6 +182,8 @@ window.THAI = {
   "Invalid channel order": "ลำดับช่องไม่ถูกต้อง",
   "Empty": "ช่องว่าง",
   "HLS gateway": "ผ่านเกตเวย์ HLS",
+  "Show password": "แสดงรหัสผ่าน",
+  "Hide password": "ซ่อนรหัสผ่าน",
   "Up/Down: choose field · OK: edit · Keyboard Done: next field": "ขึ้น/ลง: เลือกช่อง · OK: แก้ไข · เสร็จสิ้นบนแป้นพิมพ์: ช่องถัดไป",
   "Direct RTSP on TV (TizenBrew)": "RTSP ตรงบนทีวี (TizenBrew)",
   "Runs on this TV through TizenBrew. Start with one H.264 substream. No computer relay.": "ทำงานบนทีวีผ่าน TizenBrew เริ่มทดสอบ H.264 สตรีมย่อยหนึ่งกล้อง โดยไม่ใช้คอมเป็นเครื่องกลาง",
