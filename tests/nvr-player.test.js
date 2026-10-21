@@ -83,7 +83,7 @@ const client='a'.repeat(48),id='b'.repeat(48);
   const h=harness(),p=h.player.play(h.video(),profile,1,()=>{});
   h.requests[0].respond(200,{client});
   h.requests[1].respond(403,{error:'Expired local client'});
-  assert.equal(h.requests[2].path,'/client','Expired service capabilities are renewed once');
+  assert.equal(h.requests[2].path,'http://127.0.0.1:8766/client','Expired service capabilities are renewed once');
   h.requests[2].respond(200,{client:'c'.repeat(48)});
   assert.ok(h.requests[3].path.includes('c'.repeat(48)));p.close();
 }
