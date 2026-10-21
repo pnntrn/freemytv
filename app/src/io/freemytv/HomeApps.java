@@ -5,6 +5,7 @@ import android.app.ActivityOptions;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
+import android.net.Uri;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
@@ -54,7 +55,7 @@ import java.util.regex.Pattern;
 final class HomeApps {
     private HomeApps() {}
 
-    static final int APP = 0, LIVE_TV = 1, INPUT = 2, ALL_APPS = 3, SETTINGS = 4, ANDROID_SETTINGS = 5;
+    static final int APP = 0, LIVE_TV = 1, INPUT = 2, ALL_APPS = 3, SETTINGS = 4, ANDROID_SETTINGS = 5, CCTV = 6, CUSTOM_SETTINGS = 7, INSTALL = 8;
     /** The "HDMI Inputs" button: opens the bottom drawer on the inputs (the home screen handles it). */
     static final int INPUTS = 7;
     /** Image size of each card (16:9; on screen it shows up to ~330 px wide). */
@@ -79,17 +80,13 @@ final class HomeApps {
      * (YouTube); empty = the art's colors as they are. Last, a visual size tweak for the logo. Edit freely.
      */
     private static final String[][] SHELF = {
-        {"netflix", "Netflix", "com.netflix.ninja", "E50914", "", "1"},
         {"youtube", "YouTube", "com.google.android.youtube.tv", "FF0033", "play", "1"},
-        {"prime", "Prime Video", "com.amazon.amazonvideo.livingroom", "1A98FF", "tint", "0.96"},
+        {"netflix", "Netflix", "com.netflix.ninja", "E50914", "", "1"},
+        {"viu", "Viu", "com.viu.tv", "FFCC00", "", "1"},
         {"disney", "Disney+", "com.disney.disneyplus", "1838C8", "", "1"},
-        {"max", "Max", "com.wbd.stream", "6C3BE0", "", "1.32"},
-        {"appletv", "Apple TV", "com.apple.atve.androidtv.appletv", "B8BCC6", "", "1.1"},
-        {"hulu", "Hulu", "com.hulu.livingroomplus", "1CE783", "", "1"},
-        {"paramount", "Paramount+", "com.cbs.ott", "0064FF", "", "1"},
-        {"peacock", "Peacock", "com.peacocktv.peacockandroid", "6E55DC", "", "1"},
-        {"globoplay", "Globoplay", "com.globo.globotv", "FF5A1F", "tint", "1"},
-        {"spotify", "Spotify", "com.spotify.tv.android", "1DB954", "", "1"},
+        {"prime", "Prime Video", "com.amazon.amazonvideo.livingroom", "1A98FF", "tint", "0.96"},
+        {"iqiyi", "iQIYI", "com.iqiyi.i18n.tv", "00CC66", "", "1"},
+        {"cctv", "CCTV", "io.freemytv.cctv", "F97316", "", "1"}
     };
     static final int MAX_SHELF = 8;
     /** Live TV apps of some brands (the antenna's channels open through the standard Android request first). */
@@ -124,9 +121,17 @@ final class HomeApps {
         for (String pkg : shelfPackages(c)) {
             if (items.size() >= MAX_SHELF) break;
             Intent launch = launchIntent(pm, pkg);
+            String[] d = known(pkg);
+            if (pkg.equals("io.freemytv.cctv")) {
+                Item item = special(c, CCTV, "cctv", Ui.tr("CCTV", "CCTV"), "live_tv");
+                item.pkg = pkg; items.add(item); continue;
+            }
+            if (launch == null && d != null) {
+                Item item = special(c, INSTALL, d[0], d[1] + " · " + Ui.tr("Install", "Install"), "apps");
+                item.pkg = pkg; items.add(item); continue;
+            }
             if (launch == null) continue;
             ResolveInfo ri = pm.resolveActivity(launch, 0);
-            String[] d = known(pkg);
             Item it = new Item();
             it.kind = APP;
             it.pkg = pkg;
@@ -160,7 +165,7 @@ final class HomeApps {
         if (custom != null) return custom;
         List<String> out = new ArrayList<>();
         PackageManager pm = c.getPackageManager();
-        for (String[] d : SHELF) if (out.size() < MAX_SHELF && launchIntent(pm, d[2]) != null) out.add(d[2]);
+        for (String[] d : SHELF) if (out.size() < MAX_SHELF) out.add(d[2]);
         return out;
     }
 
@@ -169,7 +174,7 @@ final class HomeApps {
         PackageManager pm = c.getPackageManager();
         List<String[]> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        for (String[] d : SHELF) if (launchIntent(pm, d[2]) != null && seen.add(d[2])) out.add(new String[] {d[2], d[1]});
+        for (String[] d : SHELF) if (seen.add(d[2])) out.add(new String[] {d[2], d[1]});
         List<String[]> more = new ArrayList<>();
         Intent query = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         for (ResolveInfo ri : pm.queryIntentActivities(query, 0)) {
@@ -215,6 +220,8 @@ final class HomeApps {
     /** Shortcuts in the bottom drawer. */
     static List<Item> drawerShortcuts() {
         List<Item> items = new ArrayList<>();
+        items.add(shortcut(CCTV, "cctv", Ui.tr("CCTV", "CCTV"), "live_tv"));
+        items.add(shortcut(CUSTOM_SETTINGS, "custom-settings", Ui.tr("Settings and CCTV", "Settings and CCTV"), "settings"));
         items.add(shortcut(ALL_APPS, "all", Ui.tr("Todos os Apps", "All Apps"), "apps"));
         items.add(shortcut(SETTINGS, "settings", Ui.tr("Ajustes do Início", "Home Settings"), "settings"));
         items.add(shortcut(ANDROID_SETTINGS, "tv-settings", Ui.tr("Ajustes da TV", "TV Settings"), "tv_settings"));
@@ -366,6 +373,15 @@ final class HomeApps {
                 intent = launchIntent(a.getPackageManager(), it.pkg);
                 if (intent != null) intent.addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
                 break;
+            case CCTV:
+                intent = new Intent(a, CctvActivity.class); break;
+            case CUSTOM_SETTINGS:
+                intent = new Intent(a, CustomSettingsActivity.class); break;
+            case INSTALL:
+                intent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + Uri.encode(it.pkg)));
+                if (intent.resolveActivity(a.getPackageManager()) == null)
+                    intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + Uri.encode(it.pkg)));
+                break;
             case LIVE_TV:
                 intent = liveTv(a);
                 break;
@@ -440,8 +456,15 @@ final class HomeApps {
     }
 
     static Intent launchIntent(PackageManager pm, String pkg) {
-        Intent intent = pm.getLeanbackLaunchIntentForPackage(pkg);
-        return intent != null ? intent : pm.getLaunchIntentForPackage(pkg);
+        String[] candidates = pkg.equals("com.disney.disneyplus")
+                ? new String[] {pkg, "in.startv.hotstar.dplus.tv"}
+                : pkg.equals("com.viu.tv") ? new String[] {pkg, "com.vuclip.viu.tv"} : new String[] {pkg};
+        for (String candidate : candidates) {
+            Intent intent = pm.getLeanbackLaunchIntentForPackage(candidate);
+            if (intent == null) intent = pm.getLaunchIntentForPackage(candidate);
+            if (intent != null) return intent;
+        }
+        return null;
     }
 
     // MARK: - Colored logos (shelf)
