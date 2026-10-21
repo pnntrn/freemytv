@@ -25,7 +25,7 @@ public class CctvActivity extends Activity {
     private NvrProfile[] profiles;
     private LinearLayout body, toolbar;
     private GridLayout grid;
-    private int nvr, page, size = 4, fullChannel;
+    private int nvr, page, size = 4, rows = 2, columns = 2, fullChannel;
     private boolean resumed, storageError;
     private String t(String s) { return CustomSettingsActivity.t(s); }
 
@@ -36,6 +36,7 @@ public class CctvActivity extends Activity {
         catch (Exception e) { profiles = new NvrProfile[2]; storageError = true; }
         if (state != null) { nvr = state.getInt("nvr", 0); page = state.getInt("page", 0); }
         nvr = Math.max(0, Math.min(1, nvr));
+        rows = Prefs.cctvRows(); columns = Prefs.cctvColumns(); size = NvrLayout.cells(rows, columns);
     }
     @Override protected void onResume() { super.onResume(); resumed = true; render(); }
     @Override protected void onPause() { resumed = false; release(); super.onPause(); }
@@ -56,24 +57,28 @@ public class CctvActivity extends Activity {
         HorizontalScrollView tools = new HorizontalScrollView(this); tools.addView(toolbar); body.addView(tools);
         button(name(), () -> { nvr = 1 - nvr; page = 0; fullChannel = 0; render(); });
         button(t("Configure NVR"), this::configure);
-        button(t("Grid") + " " + size, () -> { size = size == 1 ? 4 : size == 4 ? 9 : 1; page = 0; fullChannel = 0; render(); });
+        button(t("Grid") + " " + size, this::chooseGrid);
+        button(t("Arrange"), this::arrange);
         button("‹ " + t("Previous"), () -> { page = Math.max(0, page - 1); fullChannel = 0; render(); });
-        button(t("Next") + " ›", () -> { NvrProfile p = profiles[nvr]; if (p != null) page = Math.min((p.channels - 1) / size, page + 1); fullChannel = 0; render(); });
+        button(t("Next") + " ›", () -> { NvrProfile p = profiles[nvr]; if (p != null) page = Math.min((order().length - 1) / size, page + 1); fullChannel = 0; render(); });
         button(t("Settings"), () -> startActivity(new Intent(this, CustomSettingsActivity.class)));
         TextView status = label(storageError ? "Encrypted profiles unavailable. Reconfigure this device."
                 : name() + " · " + t("Page ") + (page + 1) + " · " + t("Private LAN or VPN only."));
         body.addView(status);
         NvrProfile profile = profiles[nvr];
         grid = new GridLayout(this); int cells = fullChannel == 0 ? size : 1;
-        int columns = cells == 9 ? 3 : cells == 4 ? 2 : 1; grid.setColumnCount(columns); grid.setRowCount(columns);
+        int columnCount = fullChannel != 0 ? 1 : columns, rowCount = fullChannel != 0 ? 1 : rows;
+        grid.setColumnCount(columnCount); grid.setRowCount(rowCount);
         body.addView(grid, new LinearLayout.LayoutParams(-1, 0, 1));
         if (profile == null) body.addView(label(t("Enter private NVR details on this TV.")));
         else for (int i = 0; i < cells; i++) {
-            int channel = fullChannel == 0 ? page * size + i + 1 : fullChannel;
-            if (channel > profile.channels) break;
-            Slot slot = new Slot(profile, channel); slots.add(slot);
-            GridLayout.LayoutParams lp = new GridLayout.LayoutParams(GridLayout.spec(i / columns, 1f), GridLayout.spec(i % columns, 1f));
-            lp.width = 0; lp.height = 0; lp.setMargins(4, 4, 4, 4); grid.addView(slot.view, lp);
+            int[] arranged = order();
+            int at = page * size + i;
+            int channel = fullChannel == 0 ? (at < arranged.length ? arranged[at] : 0) : fullChannel;
+            GridLayout.LayoutParams lp = new GridLayout.LayoutParams(GridLayout.spec(i / columnCount, 1f), GridLayout.spec(i % columnCount, 1f));
+            lp.width = 0; lp.height = 0; lp.setMargins(4, 4, 4, 4);
+            if (channel == 0) { TextView empty = label(t("Empty")); empty.setBackgroundColor(0xff172033); grid.addView(empty, lp); }
+            else { Slot slot = new Slot(profile, channel); slots.add(slot); grid.addView(slot.view, lp); }
         }
         setContentView(body);
     }
@@ -110,8 +115,52 @@ public class CctvActivity extends Activity {
                         Integer.parseInt(channels.getText().toString()), path.getText().toString().trim());
                 NvrProfile[] updated = profiles.clone(); updated[nvr] = p;
                 NvrStore.write(this, updated); profiles = updated; storageError = false; page = 0;
+                if (previous == null || previous.channels != p.channels) Prefs.setCctvOrder(nvr, "");
                 dialog.dismiss();
             } catch (Exception e) { host.setError(t("Private LAN or VPN only.") + " Check fields or secure storage."); }
+        })); dialog.show();
+    }
+    private int[] order() {
+        try { return NvrLayout.order(Prefs.cctvOrder(nvr), profiles[nvr].channels); }
+        catch (IllegalArgumentException e) { return NvrLayout.order("", profiles[nvr].channels); }
+    }
+    private void setGrid(int r, int c) {
+        size = NvrLayout.cells(r, c); rows = r; columns = c; Prefs.setCctvGrid(r, c);
+        page = 0; fullChannel = 0; render();
+    }
+    private void chooseGrid() {
+        release();
+        String[] choices = {"1 (1×1)", "4 (2×2)", "9 (3×3)", "12 (3×4)", "16 (4×4)", t("Custom")};
+        AlertDialog menu = new AlertDialog.Builder(this).setTitle(t("Grid")).setItems(choices, (dialog, which) -> {
+            if (which == 5) { customGrid(); return; }
+            int[] r = {1, 2, 3, 3, 4}, c = {1, 2, 3, 4, 4}; setGrid(r[which], c[which]);
+        }).create();
+        menu.setOnCancelListener(d -> render()); menu.show();
+    }
+    private void customGrid() {
+        LinearLayout fields = new LinearLayout(this); fields.setOrientation(LinearLayout.VERTICAL); fields.setBackgroundColor(0xff1f2937);
+        EditText row = field(fields, "Rows", "" + rows, InputType.TYPE_CLASS_NUMBER);
+        EditText col = field(fields, "Columns", "" + columns, InputType.TYPE_CLASS_NUMBER);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(t("Custom")).setView(fields)
+                .setPositiveButton(t("Save"), null).setNegativeButton(t("Cancel"), null).create();
+        dialog.setOnDismissListener(d -> render());
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            try { setGrid(Integer.parseInt(row.getText().toString()), Integer.parseInt(col.getText().toString())); dialog.dismiss(); }
+            catch (IllegalArgumentException e) { row.setError("1–4"); }
+        })); dialog.show();
+    }
+    private void arrange() {
+        if (profiles[nvr] == null) { configure(); return; } release();
+        LinearLayout fields = new LinearLayout(this); fields.setOrientation(LinearLayout.VERTICAL); fields.setBackgroundColor(0xff1f2937);
+        EditText sequence = field(fields, "Channel order (comma-separated, 0 = empty)", NvrLayout.text(order()), InputType.TYPE_CLASS_TEXT);
+        AlertDialog dialog = new AlertDialog.Builder(this).setTitle(t("Arrange")).setView(fields)
+                .setPositiveButton(t("Save"), null).setNegativeButton(t("Cancel"), null).create();
+        dialog.setOnDismissListener(d -> render());
+        dialog.setOnShowListener(d -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            try {
+                int[] ordered = NvrLayout.order(sequence.getText().toString(), profiles[nvr].channels);
+                Prefs.setCctvOrder(nvr, NvrLayout.text(ordered)); page = 0; fullChannel = 0; dialog.dismiss();
+            } catch (IllegalArgumentException e) { sequence.setError(t("Invalid channel order")); }
         })); dialog.show();
     }
     @Override public boolean dispatchKeyEvent(KeyEvent e) {

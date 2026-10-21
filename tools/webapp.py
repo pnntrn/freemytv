@@ -41,6 +41,8 @@ def read_config(path):
             key, value = line.split('=', 1)
             values[key.strip()] = value.strip().strip('"')
 
+    values = dict(DEFAULTS, **values)
+
     def number(key, default):
         v = values.get(key, '') or default
         if not re.match(r'^-?\d+(\.\d+)?$', v):
@@ -49,9 +51,9 @@ def read_config(path):
 
     return {
         'tmdbKey': values.get('tmdb_key', ''),
-        'tmdbRegion': values.get('tmdb_region', 'US') or 'US',
-        'latitude': number('latitude', '40.7128'),
-        'longitude': number('longitude', '-74.0060'),
+        'tmdbRegion': values.get('tmdb_region', DEFAULTS['tmdb_region']) or DEFAULTS['tmdb_region'],
+        'latitude': number('latitude', DEFAULTS['latitude']),
+        'longitude': number('longitude', DEFAULTS['longitude']),
         'city': values.get('city', ''),
         'language': values.get('language', 'auto') or 'auto',
         'currency': values.get('currency', 'USD') or 'USD',

@@ -36,6 +36,7 @@ final class Prefs {
     static void init(Context c) {
         app = c.getApplicationContext();
         migrateKeys();   // before anything reads the button choices
+        Thai.init(c);
         Ui.applyLanguage();   // the language picked on the TV, now that it can be read
     }
 
@@ -118,6 +119,15 @@ final class Prefs {
         StringBuilder sb = new StringBuilder();
         for (String p : packages) sb.append(sb.length() == 0 ? "" : ",").append(p);
         put("shelf", sb.toString());
+    }
+
+    static String cctvOrder(int profile) { return sp().getString("cctv-order-" + profile, ""); }
+    static void setCctvOrder(int profile, String order) { put("cctv-order-" + profile, order); }
+    static int cctvRows() { return sp().getInt("cctv-rows", 2); }
+    static int cctvColumns() { return sp().getInt("cctv-columns", 2); }
+    static void setCctvGrid(int rows, int columns) {
+        NvrLayout.cells(rows, columns);
+        sp().edit().putInt("cctv-rows", rows).putInt("cctv-columns", columns).apply();
     }
 
     static int settingsShortcut() { return sp().getInt("settings-shortcut", KeyEvent.KEYCODE_MENU); }

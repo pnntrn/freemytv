@@ -4,6 +4,11 @@
 
 # Free My TV
 
+> Custom Surin fork: Thai/Sarabun, Surin weather, the requested default apps, private Android CCTV,
+> Tizen HLS viewer, 12/16/custom camera layouts and settings shortcuts.
+> See [custom installation and hardware limits](docs/INSTALL_CUSTOM.md) and
+> [build/upstream automation](docs/CUSTOM_DEVELOPMENT.md). TV/NVR compatibility is not hardware-verified.
+
 **A fast, ad-free home screen for Google TV, LG and Samsung TVs.**
 
 Trending picks from your own apps, the weather at a glance, and a look that follows the sunset.<br>

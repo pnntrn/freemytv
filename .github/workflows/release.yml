@@ -35,16 +35,20 @@ jobs:
           trap 'rm -f "$APK_KEYSTORE"' EXIT
           printf '%s' "$APK_KEYSTORE_BASE64" | base64 --decode > "$APK_KEYSTORE"
           python3 -m unittest discover -s tests -v
+          node tests/cctv.test.js
+          node tests/cctv-ui.test.js
           ./build.sh
           "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose FreeMyTV.apk
           python3 tizen/build.py --generic
-          sha256sum FreeMyTV.apk FreeMyTV-tizen.wgt > SHA256SUMS
+          python3 tizen/module.py
+          sha256sum FreeMyTV.apk FreeMyTV-tizen.wgt FreeMyTV-tizenbrew.zip > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: release-packages
           path: |
             FreeMyTV.apk
             FreeMyTV-tizen.wgt
+            FreeMyTV-tizenbrew.zip
             SHA256SUMS
           if-no-files-found: error
   publish:
