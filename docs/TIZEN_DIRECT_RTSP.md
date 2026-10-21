@@ -1,7 +1,7 @@
 # Direct Hikvision RTSP inside FreeMyTV (experimental)
 
 This mode opens from FreeMyTV's **CCTV** tile. The TizenBrew runtime runs a small Node
-service **on the TV**, receives the NVR's RTSP/TCP H.264 substream, and remuxes it to
+service **on the TV**, receives the NVR's RTSP/TCP H.264 or HEVC stream, and remuxes it to
 fragmented MP4 for the TV's MSE decoder. No PC, NAS, FFmpeg process, WASM module, or
 external npm dependency is used during playback. A PC is needed for development/install.
 
@@ -14,7 +14,7 @@ installing FreeMyTV's WGT with TizenBrew Installer. HLS mode remains available i
 - The UA49MU6100/Tizen 3 hardware diagnostic reports MSE, H.264, WebSocket and WebGL;
   WebAssembly is absent. This is a capability test, not a successful camera playback test.
 - A test-only RTSP server verifies Digest authentication and interleaved RTP over TCP.
-  Real FFmpeg-generated H.264 is depacketized (including STAP-A, FU-A and timestamp wrap),
+  Real FFmpeg-generated H.264 and HEVC are depacketized (including STAP-A, FU-A and timestamp wrap),
   remuxed, inspected by ffprobe, and fully decoded by FFmpeg in tests.
 - TizenBrew 2.0.5 installed on the real TV, the FreeMyTV module service started without
   a runtime crash, and its loopback client handshake returned HTTP 200. FreeMyTV's CCTV
@@ -22,7 +22,7 @@ installing FreeMyTV's WGT with TizenBrew Installer. HLS mode remains available i
   RTSP response advertises Digest/MD5; no account credentials were used for this check.
 - Actual NVR authentication, TV MSE playback,
   decoder concurrency and extended operation must still be verified on the TV.
-- H.264 progressive video only. H.265, H.264+/H.265+ modes, B frames, interlaced video,
+- Progressive H.264 and single-layer HEVC without reordered pictures. H.265+ is undergoing actual-device verification; it is not yet claimed compatible. B frames, interlaced video,
   MPEG-PS RTP payloads, audio, and proprietary Hik-Connect transport are not supported.
   Unsupported formats fail explicitly; there is no hidden conversion or PC fallback.
 
