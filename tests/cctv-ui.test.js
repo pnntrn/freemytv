@@ -2,7 +2,7 @@
 // Component-level DOM harness: verifies routing, resources and persisted-data boundaries.
 // This does not emulate Samsung media decoders, CSS rendering or a real TV remote.
 const assert = require('node:assert/strict'), fs = require('node:fs'), vm = require('node:vm');
-const events = {}, saved = {}, timers = new Map(); let timerID = 0;
+const events = {}, saved = {}, timers = new Map(), directCalls = []; let timerID = 0;
 let document;
 class Element {
   constructor(tag) {
@@ -18,7 +18,8 @@ class Element {
   removeChild(child) { this.children.splice(this.children.indexOf(child),1); child.parentNode = null; }
   setAttribute(name,value) { this.attributes[name] = value; }
   removeAttribute(name) { delete this.attributes[name]; if (name === 'src') this.src = ''; }
-  focus() { document.activeElement = this; }
+  focus() { if(document.activeElement&&document.activeElement!==this)document.activeElement.blur();document.activeElement = this;if(this.onfocus)this.onfocus(); }
+  blur() { if(document.activeElement===this)document.activeElement=document.body;if(this.onblur)this.onblur(); }
   click() { if (this.onclick) this.onclick(); }
   play() { this.playing = true; return {catch() {}}; }
   pause() { this.playing = false; }
@@ -34,6 +35,10 @@ document = {createElement: tag => new Element(tag), activeElement:null, hidden:f
   addEventListener(name,listener) { events[name] = listener; }};
 document.body = new Element('body');
 const ctx = {document, window:{}, console, I18N:{tr:(pt,en)=>en},
+  NvrDirect:{play(video,profile,channel,report){
+    const call={profile:{...profile},channel,closed:false};directCalls.push(call);
+    report('',false);return {close(){call.closed=true;}};
+  }},
   Prefs:{cctvLayout:()=>({rows:2,columns:2,orders:['','']}),set:(key,value)=>{saved[key]=value;}},
   setTimeout(fn) { const id = ++timerID; timers.set(id,fn); return id; },
   clearTimeout(id) { timers.delete(id); }};
@@ -44,7 +49,8 @@ function button(text) {
   assert.ok(found, 'Button exists: ' + text); return found;
 }
 function key(code) {
-  events.keydown({keyCode:code,target:document.activeElement,preventDefault(){},stopImmediatePropagation(){}});
+  const event={keyCode:code,target:document.activeElement,preventDefault(){this.prevented=true;},stopImmediatePropagation(){}};
+  events.keydown(event);return event;
 }
 ctx.CCTV.open(); assert.equal(ctx.CCTV.active,true);
 button('Grid 4').click(); button('12 (3×4)').click();
@@ -66,4 +72,41 @@ document.hidden=false; events.visibilitychange();
 button('Hikvision LAN').click(); assert.equal(root().querySelectorAll('video').length,0);
 button('Close').click(); assert.equal(ctx.CCTV.active,false); assert.equal(document.body.children.length,0);
 assert.equal(timers.size,0,'Close clears outstanding connection timers');
+ctx.CCTV.open(); button('VIGI via VPN').click(); button('Configure NVR').click();
+button('Direct RTSP on TV (TizenBrew)').click();
+inputs=root().querySelectorAll('input');
+assert.equal(document.activeElement,inputs[0]);assert.equal(inputs[0].readOnly,true);
+key(40);assert.equal(document.activeElement,inputs[1]);
+key(40);assert.equal(document.activeElement,inputs[2]);
+key(40);assert.equal(document.activeElement,inputs[3]);
+assert.equal(key(13).prevented,undefined,'OK editing must not cancel native IME');
+assert.equal(inputs[3].readOnly,false);
+key(40);assert.equal(document.activeElement,inputs[3],'Arrows stay in the keyboard while editing');
+assert.equal(key(229).prevented,undefined,'IME text entry retains native default');
+key(65376);assert.equal(document.activeElement,inputs[4]);assert.equal(inputs[3].readOnly,true);
+key(13);key(10009);assert.equal(ctx.CCTV.active,true,'Back dismisses editing without closing CCTV');
+assert.equal(document.activeElement,inputs[4]);assert.equal(inputs[4].readOnly,true);
+key(40);assert.equal(document.activeElement,button('Show password'));
+key(40);assert.equal(document.activeElement,button('Save · Session only'));
+key(38);key(38);assert.equal(document.activeElement,inputs[4]);
+key(13);key(65385);assert.equal(ctx.CCTV.active,true);assert.equal(inputs[4].readOnly,true);
+inputs[0].value='192.168.0.200';inputs[1].value='554';inputs[2].value='viewer';inputs[3].value='test-only-password';inputs[4].value='16';
+assert.equal(inputs[3].type,'password');button('Show password').click();
+assert.equal(inputs[3].type,'text');assert.equal(inputs[3].value,'test-only-password');
+assert.equal(button('Hide password').attributes['aria-pressed'],'true');button('Hide password').click();
+assert.equal(inputs[3].type,'password');assert.equal(inputs[3].value,'test-only-password');
+button('Save · Session only').click();
+assert.equal(directCalls.length,1,'Direct mode starts with a single substream');
+assert.equal(directCalls[0].channel,1);
+button('Substream').click();assert.equal(directCalls.at(-1).profile.stream,1);
+button('Main stream').click();assert.equal(directCalls.at(-1).profile.stream,2);
+button('NVR mosaic (Channel Zero)').click();assert.equal(directCalls[0].closed,true);assert.equal(directCalls.at(-1).channel,0);
+button('Grid 1').click();button('16 (4×4)').click();
+assert.equal(root().querySelectorAll('video').length,16);
+assert.deepEqual(directCalls.slice(-16).map(c=>c.channel),Array.from({length:16},(_,i)=>i+1));
+button('Close').click();assert.ok(directCalls.every(c=>c.closed));
+assert.ok(!JSON.stringify(saved).includes('test-only-password'));
+assert.ok(!JSON.stringify(saved).includes('192.168.0.200'));
+ctx.CCTV.open();assert.equal(root().querySelectorAll('video').length,0,'Closing CCTV forgets direct connection credentials');
+button('Close').click();
 console.log('CCTV component navigation, custom layout, lifecycle and session-data tests passed');

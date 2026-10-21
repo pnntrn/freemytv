@@ -110,6 +110,10 @@ https://github.com/reisxd/TizenBrew/blob/main/docs/MODULES.md
 
 ## Tizen CCTV streaming limits
 
+For the experimental **on-TV direct RTSP TizenBrew service**, see
+[Direct Hikvision RTSP](TIZEN_DIRECT_RTSP.md). It is a separate mode requiring the module's
+Node service. The HLS-only limitations below apply to the ordinary WGT and HLS mode.
+
 This viewer uses HTML video with private HLS. It does not claim raw NVR RTSP support.
 A LAN/VPN gateway must convert/relay RTSP into compatible HLS. No gateway has been deployed.
 For the first older-TV test, use H.264 with MPEG-TS HLS and a small substream.

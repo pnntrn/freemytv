@@ -28,8 +28,15 @@ jobs:
           python3 -m unittest discover -s tests -v
           node tests/cctv.test.js
           node tests/cctv-ui.test.js
+          node tests/nvr-player.test.js
           bash -n build.sh
           for source in web/*.js; do node --check "$source"; done
+      - name: Verify direct RTSP with real H.264 and HEVC decoding
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          node tests/nvr-direct.test.js
+          NVR_TEST_HEVC=1 node tests/nvr-direct.test.js
       - name: Build unsigned Tizen package
         run: |
           python3 tizen/build.py --generic
