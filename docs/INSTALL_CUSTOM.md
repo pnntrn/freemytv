@@ -10,12 +10,12 @@ been connected during development. Every-camera and every-codec compatibility is
 
 Requires Android 9+ and access to the TV's trusted LAN. Tizen cannot install this APK.
 
-1. Open the fork's Actions page and the latest successful Build and test run for main.
-   Download the Android artifact and extract FreeMyTV.apk.
+1. Open https://github.com/pnntrn/freemytv/releases/latest and download the Android APK.
+   `FreeMyTV-test.apk` is a temporary-key test build; BUILD_INFO.txt records its signing mode.
 2. Ordinary CI uses a temporary signing key: use it for testing only. Another CI build may
    not update that installation. Uninstalling to change keys clears NVR settings/credentials.
    For ongoing use, configure the persistent signing secrets in CUSTOM_DEVELOPMENT.md and
-   build a tagged release. No permanent signing secrets have been supplied.
+   build a versioned release. No permanent signing secrets have been supplied.
 3. Enable developer options and USB/network debugging on the TV. On your computer:
    adb connect TV_IP:5555, then adb install -r FreeMyTV.apk.
    Accept the debugging prompt on the TV. Some devices require pairing or USB instead.
@@ -90,10 +90,15 @@ The manifest targets Tizen 3+ (typically 2017+). Confirm the exact model/year/fi
 6. Blue opens Home Settings while this app has focus. Change/disable it in Home Settings.
    Firmware/remote keys reserved by Samsung cannot be intercepted.
 
-TizenBrew Installer is a separate community tool:
+For the desktop installer route, use TizenBrew Installer:
 https://github.com/reisxd/TizenBrewInstaller
-Supported signing/install flows have not been tested with this fork. There is no published
-signed custom release yet; installing upstream will not give you these custom features.
+Connect to the TV and use Install from GitHub: `pnntrn/freemytv`. It reads the WGT from the
+latest release. Installer source re-signs on Tizen 7+; older TVs receive the package unchanged.
+The custom WGT is unsigned. Installation acceptance on an older TV is unverified; a signature
+rejection requires local signing as above. No signed custom release has been published.
+Developer Mode/SDB connectivity is required for either route. Installing upstream will not
+give you these custom features. Installing the TizenBrew TV runtime is not required for
+this standalone WGT route.
 
 ## TizenBrew module investigation
 
