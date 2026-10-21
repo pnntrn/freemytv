@@ -91,11 +91,11 @@ function initialization(sps, pps) {
   var config = box('avcC', bytes([1, sps[1], sps[2], sps[3], 255, 225]), u16(sps.length), sps, bytes([1]), u16(pps.length), pps);
   return mp4Initialization(size, 'avc1', config, 'avc1.' + sps.slice(1, 4).toString('hex'));
 }
-function mp4Initialization(size, entry, config, name) {
+function mp4Initialization(size, entry, config, name, timescale) {
   var matrix = Buffer.concat([u32(65536), u32(0), u32(0), u32(0), u32(65536), u32(0), u32(0), u32(0), u32(1073741824)]);
   var mvhd = full('mvhd', 0, 0, zero(8), u32(90000), u32(0), u32(65536), u16(256), zero(10), matrix, zero(24), u32(2));
   var tkhd = full('tkhd', 0, 7, zero(8), u32(1), zero(4), u32(0), zero(8), zero(8), matrix, u32(size.width * 65536), u32(size.height * 65536));
-  var mdhd = full('mdhd', 0, 0, zero(8), u32(90000), u32(0), u16(21956), u16(0));
+  var mdhd = full('mdhd', 0, 0, zero(8), u32(timescale || 90000), u32(0), u16(21956), u16(0));
   var hdlr = full('hdlr', 0, 0, u32(0), bytes('vide'), zero(12), bytes('Video\0'));
   var avc1 = box(entry, zero(6), u16(1), zero(16), u16(size.width), u16(size.height), u32(4718592), u32(4718592), u32(0), u16(1), zero(32), u16(24), u16(65535), config);
   var stbl = box('stbl', full('stsd', 0, 0, u32(1), avc1), full('stts', 0, 0, u32(0)), full('stsc', 0, 0, u32(0)), full('stsz', 0, 0, u32(0), u32(0)), full('stco', 0, 0, u32(0)));
@@ -106,13 +106,20 @@ function mp4Initialization(size, entry, config, name) {
     codec: name, width: size.width, height: size.height};
 }
 function fragment(sequence, time, duration, sample, key) {
+  return fragmentSamples(sequence, time, [{duration: duration, data: sample, key: key}]);
+}
+function fragmentSamples(sequence, time, samples) {
   var tfdt = full('tfdt', 1, 0, u32(Math.floor(time / 4294967296)), u32(time % 4294967296));
+  var fields = [], data = [];
+  samples.forEach(function (sample) {
+    fields.push(u32(sample.duration), u32(sample.data.length)); data.push(sample.data);
+  });
   function moof(offset) {
-    return box('moof', full('mfhd', 0, 0, u32(sequence)), box('traf', full('tfhd', 0, 131072, u32(1)), tfdt,
-      full('trun', 0, 1793, u32(1), u32(offset), u32(duration), u32(sample.length), u32(key ? 33554432 : 16842752))));
+    return box('moof', full('mfhd', 0, 0, u32(sequence)), box('traf', full('tfhd', 0, 131104, u32(1), u32(16842752)), tfdt,
+      full('trun', 0, 773, u32(samples.length), u32(offset), u32(samples[0].key ? 33554432 : 16842752), Buffer.concat(fields))));
   }
   var first = moof(0);
-  return Buffer.concat([moof(first.length + 8), box('mdat', sample)]);
+  return Buffer.concat([moof(first.length + 8), box('mdat', Buffer.concat(data))]);
 }
 function H264(options) {
   this.sps = options.sps || null; this.pps = options.pps || null;
@@ -196,12 +203,15 @@ H264.prototype.frame = function (stamp) {
   if (this.pending) {
     var duration = (stamp - this.pending.stamp) >>> 0;
     if (!duration || duration > 900000) throw new Error('Unsupported RTP timestamp discontinuity');
-    this.onFragment(fragment(this.sequence++, this.time, duration, this.pending.data, this.pending.key));
+    this.emitSample(duration, this.pending);
     this.time += duration;
   }
   var parts = [];
   this.parts.forEach(function (nal) { parts.push(u32(nal.length), nal); });
   this.pending = {stamp: stamp, data: Buffer.concat(parts), key: key};
+};
+H264.prototype.emitSample = function (duration, sample) {
+  this.onFragment(fragment(this.sequence++, this.time, duration, sample.data, sample.key));
 };
 // RFC 7798 single-layer HEVC without decoding-order-number fields.
 function hevcInfo(sps) {
@@ -246,11 +256,27 @@ function hevcInitialization(vps, sps, pps) {
   var config = box('hvcC', bytes([1, info.profile]), u32(info.compatibility), bytes(info.constraints), bytes([info.level]),
     u16(61440), bytes([252, 252 | info.chroma, 248 | info.depthY, 248 | info.depthC]), u16(0),
     bytes([((info.layers + 1) << 3) | (info.nested << 2) | 3, 3]), Buffer.concat(arrays));
-  return mp4Initialization(info, 'hvc1', config, info.codec);
+  return mp4Initialization(info, 'hvc1', config, info.codec, 1200000);
 }
-function H265(options) { H264.call(this, options); this.vps = options.vps || null; }
+function H265(options) {
+  H264.call(this, options); this.vps = options.vps || null;
+  this.samples = []; this.sampleBytes = 0; this.sampleTime = 0;
+}
 H265.prototype = Object.create(H264.prototype);
 H265.prototype.constructor = H265;
+// This Samsung generation rejects one-frame HEVC fragments, even FFmpeg-generated ones.
+// Group five frames and use the track timescale accepted in the on-device control test.
+H265.prototype.emitSample = function (duration, sample) {
+  if (!this.samples.length) this.sampleTime = Math.round(this.time * 40 / 3);
+  this.samples.push({data: sample.data, key: sample.key,
+    duration: Math.round((this.time + duration) * 40 / 3) - Math.round(this.time * 40 / 3)});
+  this.sampleBytes += sample.data.length;
+  if (this.sampleBytes > 4 * 1024 * 1024) throw new Error('HEVC fragment exceeds memory limit');
+  if (this.samples.length === 5) {
+    this.onFragment(fragmentSamples(this.sequence++, this.sampleTime, this.samples));
+    this.samples = []; this.sampleBytes = 0;
+  }
+};
 H265.prototype.isSlice = function (nal) { return ((nal[0] >>> 1) & 63) < 32; };
 H265.prototype.isKey = function (nal) { var t = (nal[0] >>> 1) & 63; return t >= 16 && t <= 21; };
 H265.prototype.makeInit = function () {
