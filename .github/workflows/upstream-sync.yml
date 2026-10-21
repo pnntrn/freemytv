@@ -1,0 +1,42 @@
+name: Review upstream updates
+on:
+  schedule:
+    - cron: '17 23 * * *' # About 06:17 Asia/Bangkok; GitHub may delay scheduled jobs.
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: write
+concurrency:
+  group: upstream-review
+  cancel-in-progress: false
+jobs:
+  propose:
+    if: github.repository != 'simbasjungles/free-my-tv'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check original repository without executing upstream code
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          git fetch --no-tags https://github.com/simbasjungles/free-my-tv.git main
+          if git merge-base --is-ancestor FETCH_HEAD HEAD; then
+            echo 'Upstream is already included.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          existing="$(gh api "repos/$GH_REPO/pulls?state=open&head=simbasjungles:main&base=$BASE" --jq '.[0].html_url // empty')"
+          if [ -n "$existing" ]; then
+            echo "Existing review: $existing" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          gh api --method POST "repos/$GH_REPO/pulls" \
+            -f title='Review updates from Free My TV upstream' \
+            -f head='simbasjungles:main' -f base="$BASE" \
+            -f body='Daily upstream check. Review changes, approve CI if GitHub requests it, and merge manually only after checks pass. Custom fork changes remain on the base branch. This automation never merges updates.' \
+            --jq '.html_url' >> "$GITHUB_STEP_SUMMARY"

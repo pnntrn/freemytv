@@ -1,0 +1,65 @@
+name: Build release artifacts
+on:
+  push:
+    tags: ['custom-v*']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'build-tools;34.0.0' 'platforms;android-34'
+      - name: Test and build
+        env:
+          APK_KEYSTORE_BASE64: ${{ secrets.APK_KEYSTORE_BASE64 }}
+          APK_STORE_PASSWORD: ${{ secrets.APK_STORE_PASSWORD }}
+          APK_KEY_PASSWORD: ${{ secrets.APK_KEY_PASSWORD }}
+          APK_KEY_ALIAS: ${{ secrets.APK_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          : "${APK_KEYSTORE_BASE64:?Set persistent release signing secrets first}"
+          : "${APK_STORE_PASSWORD:?Missing store password}"
+          : "${APK_KEY_PASSWORD:?Missing key password}"
+          : "${APK_KEY_ALIAS:?Missing alias}"
+          export APK_KEYSTORE="$RUNNER_TEMP/release.keystore"
+          trap 'rm -f "$APK_KEYSTORE"' EXIT
+          printf '%s' "$APK_KEYSTORE_BASE64" | base64 --decode > "$APK_KEYSTORE"
+          python3 -m unittest discover -s tests -v
+          ./build.sh
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose FreeMyTV.apk
+          python3 tizen/build.py --generic
+          sha256sum FreeMyTV.apk FreeMyTV-tizen.wgt > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: |
+            FreeMyTV.apk
+            FreeMyTV-tizen.wgt
+            SHA256SUMS
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-packages
+          path: packages
+      - name: Publish draft release for review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" packages/* --draft --verify-tag --title "$TAG" \
+            --notes 'Custom build. Android uses the configured persistent signing key. Tizen WGT is unsigned and requires device-specific signing. Hardware compatibility must be checked before publishing.'

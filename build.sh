@@ -115,10 +115,16 @@ esac
 (cd out && zip -qj base.apk classes.dex)
 "$BT/zipalign" -f -p 4 out/base.apk out/aligned.apk
 
-# --- Sign with your own key (created once; updates need the same key, so keep freemytv.keystore)
-if [ ! -f freemytv.keystore ]; then
-  "$KEYTOOL" -genkeypair -keystore freemytv.keystore -alias freemytv -keyalg RSA -keysize 2048 -validity 20000 \
-    -storepass freemytv -keypass freemytv -dname "CN=Free My TV" >/dev/null 2>&1
+# --- Local builds keep their key; CI releases must supply an existing persistent key.
+KEYSTORE="${APK_KEYSTORE:-freemytv.keystore}"
+KEY_ALIAS="${APK_KEY_ALIAS:-freemytv}"
+export APK_STORE_PASSWORD="${APK_STORE_PASSWORD:-freemytv}"
+export APK_KEY_PASSWORD="${APK_KEY_PASSWORD:-freemytv}"
+if [ ! -f "$KEYSTORE" ]; then
+  [ -z "${APK_KEYSTORE:-}" ] || { echo "Configured APK_KEYSTORE does not exist." >&2; exit 1; }
+  "$KEYTOOL" -genkeypair -keystore "$KEYSTORE" -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 20000 \
+    -storepass:env APK_STORE_PASSWORD -keypass:env APK_KEY_PASSWORD -dname "CN=Free My TV" >/dev/null 2>&1
 fi
-"$BT/apksigner" sign --ks freemytv.keystore --ks-pass pass:freemytv --key-pass pass:freemytv --out FreeMyTV.apk out/aligned.apk
+"$BT/apksigner" sign --ks "$KEYSTORE" --ks-key-alias "$KEY_ALIAS" --ks-pass env:APK_STORE_PASSWORD \
+  --key-pass env:APK_KEY_PASSWORD --out FreeMyTV.apk out/aligned.apk
 echo "Built FreeMyTV.apk ($(du -h FreeMyTV.apk | cut -f1)). Install: adb install -r FreeMyTV.apk"
