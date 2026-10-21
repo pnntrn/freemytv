@@ -20,8 +20,8 @@ installing FreeMyTV's WGT with TizenBrew Installer. HLS mode remains available i
   a runtime crash, and its loopback client handshake returned HTTP 200. FreeMyTV's CCTV
   connection form loaded in the TV's browser engine. The real NVR's unauthenticated
   RTSP response advertises Digest/MD5; no account credentials were used for this check.
-- Actual NVR authentication, TV MSE playback,
-  decoder concurrency and extended operation must still be verified on the TV.
+- The real NVR authenticates and advertises HEVC. A synthetic HEVC sample remuxed by this code plays on the UA49MU6100 TV. Its older media parser needs grouped frames and first-sample flags; one-frame HEVC fragments fail, including FFmpeg-generated controls.
+- Live NVR playback, decoder concurrency and extended operation remain under verification.
 - Progressive H.264 and single-layer HEVC without reordered pictures. H.265+ is undergoing actual-device verification; it is not yet claimed compatible. B frames, interlaced video,
   MPEG-PS RTP payloads, audio, and proprietary Hik-Connect transport are not supported.
   Unsupported formats fail explicitly; there is no hidden conversion or PC fallback.

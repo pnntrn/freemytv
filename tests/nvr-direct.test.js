@@ -40,7 +40,7 @@ assert.throws(()=>service.streamDescription('m=video 0 RTP/AVP 96\r\na=rtpmap:96
 const root = path.resolve(hevc ? 'out/hevc-test' : 'out/nvr-test'); fs.mkdirSync(root,{recursive:true});
 const h264File = path.join(root,'source.h264'), mp4File = path.join(root,'result.mp4');
 let generated = spawnSync('ffmpeg',['-hide_banner','-loglevel','error','-y','-f','lavfi','-i','testsrc2=size=320x180:rate=5',
-  '-t','3','-c:v',hevc?'libx265':'libx264','-profile:v',hevc?'main':'baseline','-pix_fmt','yuv420p','-bf','0',hevc?'-x265-params':'-x264-params','keyint=5:aud=1:repeat-headers=1:pools=1:frame-threads=1:log-level=error','-f',hevc?'hevc':'h264',h264File],{encoding:'utf8'});
+  '-t','8','-c:v',hevc?'libx265':'libx264','-profile:v',hevc?'main':'baseline','-pix_fmt','yuv420p','-bf','0',hevc?'-x265-params':'-x264-params','keyint=5:aud=1:repeat-headers=1:pools=1:frame-threads=1:log-level=error','-f',hevc?'hevc':'h264',h264File],{encoding:'utf8'});
 assert.equal(generated.status,0,generated.stderr || 'FFmpeg is required for media verification');
 function nals(data) {
   const positions=[];
@@ -85,7 +85,7 @@ const probe=spawnSync('ffprobe',['-v','error','-select_streams','v:0','-count_fr
 assert.equal(probe.status,0,probe.stderr);
 const stream=JSON.parse(probe.stdout).streams[0];
 assert.equal(stream.codec_name,hevc?'hevc':'h264');assert.equal(stream.width,320);assert.equal(stream.height,180);
-assert.equal(+stream.nb_read_frames,frames.length-1,'Only the final frame waits for its following timestamp');
+assert.equal(+stream.nb_read_frames,hevc?Math.floor((frames.length-1)/5)*5:frames.length-1,'Pending frames wait for duration and a complete HEVC fragment');
 const decode=spawnSync('ffmpeg',['-hide_banner','-loglevel','error','-i',mp4File,'-f','null','-'],{encoding:'utf8'});
 assert.equal(decode.status,0,decode.stderr);assert.equal(decode.stderr,'');
 assert.throws(()=>new Video({}).rtp(Buffer.from([0]),96));
