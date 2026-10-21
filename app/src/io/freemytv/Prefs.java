@@ -120,6 +120,15 @@ final class Prefs {
         put("shelf", sb.toString());
     }
 
+    static String cctvOrder(int profile) { return sp().getString("cctv-order-" + profile, ""); }
+    static void setCctvOrder(int profile, String order) { put("cctv-order-" + profile, order); }
+    static int cctvRows() { return sp().getInt("cctv-rows", 2); }
+    static int cctvColumns() { return sp().getInt("cctv-columns", 2); }
+    static void setCctvGrid(int rows, int columns) {
+        NvrLayout.cells(rows, columns);
+        sp().edit().putInt("cctv-rows", rows).putInt("cctv-columns", columns).apply();
+    }
+
     static int settingsShortcut() { return sp().getInt("settings-shortcut", KeyEvent.KEYCODE_MENU); }
     static void setSettingsShortcut(int code) { sp().edit().putInt("settings-shortcut", code).apply(); version++; }
 

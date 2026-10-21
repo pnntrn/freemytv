@@ -62,17 +62,13 @@
 
   /** Shelf apps in this order when installed, like the Android app: key, LG app id, name on the TV, brand gradient. */
   var SHELF = [
-    ['netflix', /^netflix$/, /netflix/i, ['#0A0A0A', '#000000']],
     ['youtube', /youtube/, /^youtube$/i, ['#1C1C1E', '#09090A']],
-    ['prime', /^amazon$/, /prime video|amazon/i, ['#2AA8FF', '#0A68D4']],
-    ['disney', /disney/, /disney/i, ['#173584', '#08143F']],
-    ['max', /hbo|wbd/, /^(hbo )?max$|hbo max/i, ['#5C30E8', '#221684']],
-    ['appletv', /appletv|apple\.tv/, /apple tv/i, ['#1C1C1E', '#000000']],
-    ['hulu', /^hulu/, /hulu/i, ['#1CE783', '#0B8F4E']],
-    ['paramount', /paramount|cbs/, /paramount/i, ['#0064FF', '#002A86']],
-    ['peacock', /peacock/, /peacock/i, ['#1C1C1E', '#000000']],
-    ['globoplay', /globoplay/, /globoplay/i, ['#FF8A1F', '#FF2D5A']],
-    ['spotify', /spotify/, /spotify/i, ['#1DB954', '#0F7A36']]
+    ['netflix', /netflix/, /netflix/i, ['#0A0A0A', '#000000']],
+    ['viu', /viu/, /viu/i, ['#FFCC00', '#A67C00']],
+    ['disney', /disney|hotstar/, /disney/i, ['#173584', '#08143F']],
+    ['prime', /amazon/, /prime video|amazon/i, ['#2AA8FF', '#0A68D4']],
+    ['iqiyi', /iqiyi/, /iqiyi/i, ['#00CC66', '#087833']],
+    ['cctv', /^fmtv:cctv$/, /^CCTV$/, ['#F97316', '#9A3412']]
   ];
   var MAX_SHELF = 8;
 
@@ -322,6 +318,7 @@
     }
     drawerInputs = drawerItems.length;
     drawerItems.push({label: tr('Todos os Apps', 'All Apps', 'Todas las apps'), symbol: 'apps', run: openApps});
+    drawerItems.push({label: tr('CCTV', 'CCTV'), symbol: 'live_tv', run: CCTV.open});
     drawerItems.push({label: tr('Ajustes do Início', 'Home Settings', 'Ajustes de inicio'), symbol: 'settings', run: openSettings});
     drawerItems.push({label: tr('Ajustes da TV', 'TV Settings', 'Ajustes del TV'), symbol: 'tv_settings', run: tvSettings});
     var n = drawerItems.length, gap = 18, groupGap = 56, groups = drawerInputs > 0 && drawerInputs < n ? 2 : 1;
@@ -461,6 +458,11 @@
 
   // MARK: - Home Settings
 
+  function shortcutName() {
+    var names = {0: 'Disabled', 403: 'Red', 404: 'Green', 405: 'Yellow', 406: 'Blue', 457: 'Info'};
+    return tr(names[Prefs.settingsShortcut()] || 'Disabled', names[Prefs.settingsShortcut()] || 'Disabled');
+  }
+
   function settingRows() {
     var lang = Prefs.language(), unit = Prefs.temperature(), theme = Prefs.theme();
     var auto = tr('Automático', 'Automatic', 'Automático'), on = tr('Ligado', 'On', 'Activado'), off = tr('Desligado', 'Off', 'Desactivado');
@@ -484,6 +486,11 @@
           step: function () { if (Prefs.quotes()) { Prefs.setCoin(i, !Prefs.coin(i)); Data.settingsChanged(); } }});
       })(i);
     }
+    rows.push({label: tr('Settings shortcut', 'Settings shortcut'), value: shortcutName(), step: function (d) {
+      var keys = [0, 403, 404, 405, 406, 457], at = keys.indexOf(Prefs.settingsShortcut());
+      Prefs.set('settingsShortcut', keys[(at + d + keys.length) % keys.length]);
+    }});
+    rows.push({label: tr('CCTV', 'CCTV'), value: '›', step: function (d) { if (d >= 0) CCTV.open(); }});
     rows.push({label: tr('Prateleira', 'Shelf', 'Estante'), value: '›', step: function (d) { if (d >= 0) openShelfEdit(); }});
     rows.push({label: tr('Ajustes da TV', 'TV Settings', 'Ajustes del TV'), value: '›', step: function (d) { if (d >= 0) tvSettings(); }});
     return rows;
@@ -598,6 +605,8 @@
 
   function launcher(id, name) {
     return function () {
+      if (id === 'fmtv:cctv') { CCTV.open(); return; }
+      if (id.indexOf('fmtv:missing:') === 0) { toast(tr('Not installed', 'Not installed') + ': ' + (name || id) + ' — Smart Hub / Apps'); return; }
       TV.launch(id, null, function (ok) {
         if (!ok) toast(tr('Não deu para abrir ', "Couldn't open ", 'No se pudo abrir ') + (name || id));
       });
@@ -747,6 +756,7 @@
   var saverOn = false, idleAt = Date.now(), saverIndex = 0, saverTimer = 0, SAVER_AFTER = 5 * 60000;
 
   function showSaver() {
+    if (CCTV.active) return;
     var photos = Data.showcase().filter(function (p) { return p.backdrop && Data.appFor(p.app); });
     saverOn = true;
     var s = $('saver');
@@ -806,7 +816,9 @@
 
   document.addEventListener('keydown', function (e) {
     var k = e.keyCode;
+    if (CCTV.active) return;
     if (poke()) { e.preventDefault(); return; }   // the first press only wakes the screen
+    if (Prefs.settingsShortcut() && k === Prefs.settingsShortcut()) { openSettings(); e.preventDefault(); return; }
     if (k === TV.keys.left) move(-1, 0);
     else if (k === TV.keys.right) move(1, 0);
     else if (k === TV.keys.up) move(0, -1);
@@ -836,6 +848,13 @@
   function loadApps(done) {
     TV.apps(function (list) {
       apps = list;
+      var desired = ['YouTube', 'Netflix', 'Viu', 'Disney+', 'Prime Video', 'iQIYI', 'CCTV'];
+      for (var d = 0; d < SHELF.length; d++) {
+        var present = false;
+        for (var a = 0; a < apps.length; a++) if (SHELF[d][1].test(apps[a].id) || SHELF[d][2].test(apps[a].title)) present = true;
+        if (!present) apps.push({id: d === 6 ? 'fmtv:cctv' : 'fmtv:missing:' + SHELF[d][0],
+          title: desired[d], icon: '', color: '', missing: d !== 6});
+      }
       Data.setApps(apps);
       pickShelf();
       TV.inputs(function (list2) {

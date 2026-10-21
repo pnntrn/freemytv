@@ -163,5 +163,22 @@
   "Use HLS over LAN/VPN. Raw RTSP is not supported here.": "ใช้ HLS ผ่านเครือข่ายภายในหรือ VPN หน้านี้ไม่รองรับ RTSP โดยตรง",
   "Install": "ติดตั้ง",
   "Info": "ข้อมูล",
-  "Free My TV's home screen ran into a problem.\nGoing back to the TV's original home screen…": "หน้าหลัก Free My TV มีปัญหา\nกำลังกลับไปยังหน้าหลักเดิมของทีวี…"
+  "Free My TV's home screen ran into a problem.\nGoing back to the TV's original home screen…": "หน้าหลัก Free My TV มีปัญหา\nกำลังกลับไปยังหน้าหลักเดิมของทีวี…",
+  "Original mode, but I couldn't turn back on: ": "กลับสู่โหมดเดิมแล้ว แต่เปิดแอปเหล่านี้ไม่ได้: ",
+  "Couldn't go back to the original: ": "กลับสู่โหมดเดิมไม่ได้: ",
+  "Free My TV's home screen crashed 3 times in a row; I switched back to the original one.": "หน้าหลัก Free My TV หยุดทำงาน 3 ครั้งติดต่อกัน จึงกลับสู่หน้าหลักเดิม",
+  "the home screen": "หน้าหลัก",
+  "the screensaver": "ภาพพักหน้าจอ",
+  "Couldn't check Free My TV: ": "ตรวจสอบ Free My TV ไม่ได้: ",
+  "The TV update turned back on ": "การอัปเดตทีวีเปิดกลับคืน: ",
+  "Turned off what was missing: ": "ปิดรายการที่ยังเหลือ: ",
+  "The TV was updated; Free My TV is still on.": "ทีวีอัปเดตแล้ว และ Free My TV ยังทำงานอยู่",
+  "Accept “Allow USB debugging?” on the TV (tick “Always allow”).": "บนทีวี เลือกอนุญาตการแก้ไขข้อบกพร่อง USB และเลือกอนุญาตเสมอ",
+  "Arrange": "จัดเรียง",
+  "Custom": "กำหนดเอง",
+  "Rows": "แถว",
+  "Columns": "คอลัมน์",
+  "Channel order (comma-separated, 0 = empty)": "ลำดับช่อง (คั่นด้วยจุลภาค ใช้ 0 เว้นว่าง)",
+  "Invalid channel order": "ลำดับช่องไม่ถูกต้อง",
+  "Empty": "ช่องว่าง"
 }

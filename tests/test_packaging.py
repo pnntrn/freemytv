@@ -1,5 +1,6 @@
 """Offline checks for actual distributable content and configuration boundaries."""
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -40,6 +41,26 @@ class PackagingTests(unittest.TestCase):
             self.assertIn('fonts/InterVariable.ttf', package.namelist())
             self.assertIn('fonts/OFL.txt', package.namelist())
             self.assertNotIn('author-signature.xml', package.namelist())
+
+    def test_shared_thai_covers_existing_static_android_copy(self):
+        words = json.loads((ROOT / "shared/th.json").read_text())
+        source = (ROOT / "app/src/io/freemytv/Spanish.java").read_text()
+        keys = [json.loads(key) for key in re.findall(r'case ("(?:[^"\\\\]|\\\\.)*"):', source)]
+        self.assertTrue(keys)
+        self.assertEqual([key for key in keys if key not in words], [])
+        assets = webapp.files(dict(webapp.GENERIC), "test")
+        self.assertIn("thai.js", assets)
+        self.assertIn("fonts/Sarabun-OFL.txt", assets)
+
+    def test_tizenbrew_archive_matches_entrypoint(self):
+        subprocess.run([sys.executable, str(ROOT / "tizen/module.py")], check=True, cwd=ROOT)
+        with zipfile.ZipFile(ROOT / "FreeMyTV-tizenbrew.zip") as package:
+            self.assertIsNone(package.testzip())
+            metadata = json.loads(package.read("package.json"))
+            self.assertEqual(metadata["packageType"], "app")
+            self.assertIn(metadata["appPath"], package.namelist())
+            self.assertIn("app/cctv.js", package.namelist())
+            self.assertNotIn(b"password", package.read("app/config.js"))
 
     def test_original_mit_notice_preserved(self):
         license_text = (ROOT / 'LICENSE').read_text()

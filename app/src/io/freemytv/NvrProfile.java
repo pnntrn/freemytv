@@ -6,7 +6,7 @@ final class NvrProfile {
     final int port, channels;
     NvrProfile(String host, int port, String username, String password, int channels, String path) {
         if (!privateAddress(host) || port < 1 || port > 65535 || channels < 1 || channels > 64
-                || path == null || !path.startsWith("/") || !path.contains("{channel}")
+                || path == null || !path.startsWith("/") || channels > 1 && !path.contains("{channel}")
                 || !path.matches("[A-Za-z0-9_./{}-]+") || path.startsWith("//") || path.contains("..")
                 || username == null || password == null || username.length() > 256 || password.length() > 256)
             throw new IllegalArgumentException("Invalid private NVR profile");

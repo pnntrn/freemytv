@@ -66,6 +66,13 @@ var TV = (function () {
     try { self = window.tizen.application.getCurrentApplication().appInfo.id; } catch (e) {}
   }
 
+  if (samsung && window.tizen.tvinputdevice) {
+    var shortcutKeys = ['ColorF0Red', 'ColorF1Green', 'ColorF2Yellow', 'ColorF3Blue', 'Info'];
+    for (var sk = 0; sk < shortcutKeys.length; sk++) {
+      try { window.tizen.tvinputdevice.registerKey(shortcutKeys[sk]); } catch (e) {}
+    }
+  }
+
   // MARK: - Samsung
 
   function samsungApps(done) {

@@ -12,3 +12,9 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Custom build packages and local streaming configuration
+FreeMyTV-tizenbrew.zip
+cctv.local.*
+*.p12
+*.pfx

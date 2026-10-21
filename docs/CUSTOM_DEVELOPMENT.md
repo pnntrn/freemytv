@@ -14,7 +14,7 @@ The home drawer has Settings and CCTV. Its configurable Menu/Info/color shortcut
 has focus; it does not hijack Home, Back, Power or keys owned by another app.
 CCTV profiles are encrypted with AES-GCM and an Android Keystore key in no-backup storage.
 Only private RFC1918 IPv4 addresses are accepted. Hikvision and VIGI path templates are editable.
-The grids support 1/4/9 tiles with paging up to 64 channels and OK to expand a tile.
+The grids support 1/4/9/12/16 tiles with paging up to 64 channels and OK to expand a tile.
 Native MediaPlayer RTSP compatibility, authentication and concurrent decoder limits are unverified.
 
 ## GitHub setup
@@ -48,16 +48,20 @@ The release job fails rather than silently creating a temporary key when secrets
 A `custom-v*` tag runs the build and produces a **draft** GitHub release with APK, unsigned WGT,
 and SHA256SUMS. Review hardware results before publishing it. Samsung signing is separate.
 
-## Remaining stages
+## Implemented stages and remaining verification
 
-1. Android: Thai translations, bundled Sarabun with its font license, Surin weather defaults,
-   configurable settings shortcut, and navigation tests.
-2. CCTV: two private NVR profiles, secure credential storage, LAN/VPN-only endpoint validation,
-   camera paging and remote-friendly grids. Choose playback integration after reviewing the
-   dependency-free Android build and NVR stream formats. No credentials in stream logs or exports.
-3. Tizen: extend the upstream `web/` and `tizen/` implementation, share translations/assets,
-   verify TizenBrew packaging and Samsung media capabilities. Do not promise Android APK support.
-4. Verify builds and write final Android/Tizen installation and hardware test instructions.
+Android features were reviewed in PR #1 and passed GitHub's Android compilation/signature checks
+and Java input boundary tests before merging. The subsequent Tizen/layout stage adds 12/16
+and custom rows/columns, persistent channel ordering, blank slots, a private HLS viewer and a
+TizenBrew module archive builder. INSTALL_CUSTOM.md covers installation and exact limitations.
+
+The original MIT license is unchanged. Sarabun's SIL OFL license is included in both packages.
+No real TV, NVR or VPN has been connected. Signing secrets and a Samsung certificate have
+not been supplied, so the permanent release/signing flow has not been exercised.
+
+Daily upstream review is configured on main. An actual future upstream-update PR and the repository
+setting allowing Actions to create PRs remain unverified; run the workflow manually to check these.
+There is no upstream auto-merge.
 
 Do not expose NVR RTSP, HTTP, management or ONVIF ports to the Internet.
 Use OpenWrt VPN routing for VIGI remote access. Do not configure router changes without actual
