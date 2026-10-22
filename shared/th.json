@@ -180,5 +180,18 @@
   "Columns": "คอลัมน์",
   "Channel order (comma-separated, 0 = empty)": "ลำดับช่อง (คั่นด้วยจุลภาค ใช้ 0 เว้นว่าง)",
   "Invalid channel order": "ลำดับช่องไม่ถูกต้อง",
-  "Empty": "ช่องว่าง"
+  "Empty": "ช่องว่าง",
+  "Links to the titles by Watchmode.": "ลิงก์ไปยังหน้ารายการโดย Watchmode",
+  "Navigation sounds": "เสียงเมื่อเลื่อนเมนู",
+  "Tabii button": "ปุ่ม Tabii",
+  "BRAVIA CORE button": "ปุ่ม BRAVIA CORE",
+  "Disney+ button": "ปุ่ม Disney+",
+  "Crunchyroll button": "ปุ่ม Crunchyroll",
+  "Sony default": "ค่าเริ่มต้นของ Sony",
+  "Sony default: the button opens what it always did.": "ค่าเริ่มต้นของ Sony: ปุ่มจะเปิดแอปเดิมตามปกติ",
+  "Netflix, YouTube and Prime Video: the TV itself controls those buttons.": "ทีวีเป็นผู้ควบคุมปุ่ม Netflix, YouTube และ Prime Video",
+  "The other buttons: the TV itself controls them.": "ปุ่มอื่น ๆ ควบคุมโดยทีวี",
+  "TCL remote buttons: on this TV they work as always.": "ปุ่มรีโมต TCL: บนทีวีเครื่องนี้ใช้งานได้ตามปกติ",
+  "High ": "สูงสุด ",
+  "Low ": "ต่ำสุด "
 }
