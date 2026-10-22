@@ -44,6 +44,8 @@ var Prefs = (function () {
   return {
     version: 0,
     language: function () { return pick('language', CONFIG.language || 'auto'); },
+    youtubeOnly: function () { return pick('youtubeOnly', false) === true; },
+    youtubeApp: function () { return pick('youtubeApp', ''); },
     cctvLayout: function () { return pick('cctvLayout', {rows: 2, columns: 2, orders: ['', '']}); },
     settingsShortcut: function () { return pick('settingsShortcut', 406); },
     temperature: function () { return pick('temperature', CONFIG.temperature || 'auto'); },

@@ -10,6 +10,8 @@
 (function () {
   'use strict';
 
+  if (Prefs.youtubeOnly()) { YouTubeHome.start(); return; }
+
   function $(id) { return document.getElementById(id); }
 
   function el(tag, cls, parent, text) {
@@ -496,6 +498,9 @@
       Prefs.set('settingsShortcut', keys[(at + d + keys.length) % keys.length]);
     }});
     rows.push({label: tr('CCTV', 'CCTV'), value: '›', step: function (d) { if (d >= 0) CCTV.open(); }});
+    rows.push({label: tr('YouTube only', 'YouTube only'), value: '›', step: function (d) {
+      if (d >= 0) { Prefs.set('youtubeOnly', true); window.location.reload(); }
+    }});
     rows.push({label: tr('Prateleira', 'Shelf', 'Estante'), value: '›', step: function (d) { if (d >= 0) openShelfEdit(); }});
     rows.push({label: tr('Ajustes da TV', 'TV Settings', 'Ajustes del TV'), value: '›', step: function (d) { if (d >= 0) tvSettings(); }});
     return rows;

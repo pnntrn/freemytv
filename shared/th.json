@@ -193,5 +193,12 @@
   "The other buttons: the TV itself controls them.": "ปุ่มอื่น ๆ ควบคุมโดยทีวี",
   "TCL remote buttons: on this TV they work as always.": "ปุ่มรีโมต TCL: บนทีวีเครื่องนี้ใช้งานได้ตามปกติ",
   "High ": "สูงสุด ",
-  "Low ": "ต่ำสุด "
+  "Low ": "ต่ำสุด ",
+  "YouTube only": "เฉพาะ YouTube",
+  "Blue button: full home screen": "ปุ่มสีน้ำเงิน: กลับหน้าหลักแบบเต็ม",
+  "Press OK to open YouTube": "กด OK เพื่อเปิด YouTube",
+  "YouTube is not installed on this TV.": "ยังไม่ได้ติดตั้ง YouTube บนทีวีเครื่องนี้",
+  "Opening YouTube…": "กำลังเปิด YouTube…",
+  "Could not open YouTube.": "เปิด YouTube ไม่สำเร็จ",
+  "Finding YouTube…": "กำลังค้นหา YouTube…"
 }

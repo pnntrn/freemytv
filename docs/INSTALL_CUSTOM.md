@@ -92,6 +92,8 @@ The manifest targets Tizen 3+ (typically 2017+). Confirm the exact model/year/fi
 6. Blue opens Home Settings while this app has focus. Change/disable it in Home Settings.
    Firmware/remote keys reserved by Samsung cannot be intercepted.
 
+For a minimal launcher, choose **YouTube only** in Home Settings. It shows one native YouTube shortcut, caches the discovered app ID, and bypasses the full home startup, recommendations, weather/crypto feeds and refresh timers. OK opens YouTube; Back returns to the TV; Blue restores the full home. This preference changes FreeMyTV only and does not uninstall other TV apps.
+
 For the desktop installer route, use TizenBrew Installer:
 https://github.com/reisxd/TizenBrewInstaller
 Connect to the TV and use Install from GitHub: `pnntrn/freemytv`. It reads the WGT from the

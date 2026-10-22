@@ -47,6 +47,8 @@ class PackagingTests(unittest.TestCase):
             self.assertIn(entry, package.namelist())
             self.assertIn('fonts/InterVariable.ttf', package.namelist())
             self.assertIn('fonts/OFL.txt', package.namelist())
+            self.assertIn('youtube-home.js', package.namelist())
+            self.assertIn(b'youtube-home.js', package.read(entry))
             for icon in ('youtube.png', 'netflix.svg', 'prime.png'):
                 self.assertIn('icons/' + icon, package.namelist())
             self.assertNotIn('author-signature.xml', package.namelist())
