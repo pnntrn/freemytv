@@ -10,7 +10,7 @@ import webapp
 
 def build():
     package = {
-        "name": "freemytv-surin", "version": "1.0.0",
+        "name": "freemytv-surin", "version": "1.1.0",
         "description": "Free My TV with Thai Surin defaults and private CCTV",
         "license": "MIT", "private": True, "packageType": "app",
         "appName": "Free My TV Surin", "appPath": "app/index.html",
