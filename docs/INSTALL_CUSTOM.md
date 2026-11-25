@@ -3,8 +3,7 @@
 Source: https://github.com/pnntrn/freemytv
 Upstream: https://github.com/simbasjungles/free-my-tv
 
-This fork contains code/build verification, not hardware certification. No TV, NVR or VPN has
-been connected during development. Every-camera and every-codec compatibility is not promised.
+This fork contains code/build verification, not hardware certification. Standalone installation, Thai menus, Surin weather and native app launches were checked on a Samsung UA49MU6100 (Tizen 3). CCTV playback is not verified. Every-camera and every-codec compatibility is not promised.
 
 ## Android TV installation
 
@@ -71,6 +70,9 @@ compromised server's behavior.
 
 ## Samsung Tizen installation
 
+The 1.1 Thai fork installs as **Free My TV Surin** (`FreeMyTVth.FreeMyTV`), separately from upstream Free My TV. It retains the 1.1 Tizen app discovery and logos, with Thai/Sarabun and Surin/Celsius defaults.
+
+
 The separate web implementation shares translations, defaults, fonts and design assets.
 It does not run Android Java/APKs, replace Smart Hub or auto-install third-party apps.
 The manifest targets Tizen 3+ (typically 2017+). Confirm the exact model/year/firmware;
@@ -84,18 +86,19 @@ The manifest targets Tizen 3+ (typically 2017+). Confirm the exact model/year/fi
    The CI WGT is unsigned and cannot be installed as-is. Updates need the same signing identity.
 4. Connect using sdb connect TV_IP. Inspect sdb devices and use the exact target serial.
    Install: tizen install -n FreeMyTV-tizen.wgt -t TARGET
-   Launch: tizen run -p FreeMyTVio.FreeMyTV -t TARGET
+   Launch: tizen run -p FreeMyTVth.FreeMyTV -t TARGET
 5. Install official streaming apps through Samsung Apps where available. Installed apps are
    discovered by ID/name. Missing tiles report Not installed and do not simulate installations.
 6. Blue opens Home Settings while this app has focus. Change/disable it in Home Settings.
    Firmware/remote keys reserved by Samsung cannot be intercepted.
 
+For a minimal launcher, choose **YouTube only** in Home Settings. It shows one native YouTube shortcut, caches the discovered app ID, and bypasses the full home startup, recommendations, weather/crypto feeds and refresh timers. OK opens YouTube; Back returns to the TV; Blue restores the full home. This preference changes FreeMyTV only and does not uninstall other TV apps.
+
 For the desktop installer route, use TizenBrew Installer:
 https://github.com/reisxd/TizenBrewInstaller
 Connect to the TV and use Install from GitHub: `pnntrn/freemytv`. It reads the WGT from the
 latest release. Installer source re-signs on Tizen 7+; older TVs receive the package unchanged.
-The custom WGT is unsigned. Installation acceptance on an older TV is unverified; a signature
-rejection requires local signing as above. No signed custom release has been published.
+CI packages are unsigned and must be signed before installation. A locally signed custom 1.1 package was accepted on the 2017 UA49MU6100 using a standard Tizen developer certificate, without Samsung account sign-in. Keep the same private author certificate for future updates; never commit or upload its key/password. No signed custom release has been published.
 Developer Mode/SDB connectivity is required for either route. Installing upstream will not
 give you these custom features. Installing the TizenBrew TV runtime is not required for
 this standalone WGT route.

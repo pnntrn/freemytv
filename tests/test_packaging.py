@@ -19,6 +19,10 @@ class PackagingTests(unittest.TestCase):
         files = webapp.files(dict(webapp.GENERIC), 'test')
         config = json.loads(files['config.js'].decode().split('window.CONFIG = ', 1)[1].rstrip(';\n'))
         self.assertEqual(config['tmdbKey'], '')
+        self.assertEqual(config['language'], 'th')
+        self.assertEqual(config['city'], 'Mueang Surin, Surin, Thailand')
+        self.assertEqual((config['latitude'], config['longitude']), ('14.8818', '103.4936'))
+        self.assertEqual(config['temperature'], 'C')
         self.assertFalse(any(name.endswith(('.properties', '.keystore')) for name in files))
 
     def test_config_preserves_non_ascii_and_rejects_invalid_coordinates(self):
@@ -35,11 +39,18 @@ class PackagingTests(unittest.TestCase):
         with zipfile.ZipFile(ROOT / 'FreeMyTV-tizen.wgt') as package:
             self.assertIsNone(package.testzip())
             manifest = ET.fromstring(package.read('config.xml'))
+            self.assertEqual(manifest.attrib['version'], '1.1.0')
+            identity = manifest.find('{http://tizen.org/ns/widgets}application')
+            self.assertEqual(identity.attrib['id'], 'FreeMyTVth.FreeMyTV')
             ns = {'w': 'http://www.w3.org/ns/widgets'}
             entry = manifest.find('w:content', ns).attrib['src']
             self.assertIn(entry, package.namelist())
             self.assertIn('fonts/InterVariable.ttf', package.namelist())
             self.assertIn('fonts/OFL.txt', package.namelist())
+            self.assertIn('youtube-home.js', package.namelist())
+            self.assertIn(b'youtube-home.js', package.read(entry))
+            for icon in ('youtube.png', 'netflix.svg', 'prime.png'):
+                self.assertIn('icons/' + icon, package.namelist())
             self.assertNotIn('author-signature.xml', package.namelist())
 
     def test_shared_thai_covers_existing_static_android_copy(self):

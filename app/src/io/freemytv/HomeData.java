@@ -15,6 +15,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.text.NumberFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -33,8 +36,13 @@ final class HomeData {
     static final String[] COINS = {"BTC", "ETH", "SOL", "USDT"};
     static final String[] COIN_NAMES = {"Bitcoin", "Ethereum", "Solana", "Dollar"};
     private static final String CURRENCY = Config.CURRENCY.trim().toUpperCase(Locale.ROOT);
+    /** Binance has no pairs in some currencies (INR...) and then refuses the whole request: prices go in dollars instead. */
+    private static volatile boolean inDollars;
+
     /** Binance quotes dollars as USDT. */
-    private static final String QUOTE = CURRENCY.equals("USD") ? "USDT" : CURRENCY;
+    private static String quote() {
+        return CURRENCY.equals("USD") || inDollars ? "USDT" : CURRENCY;
+    }
     private static final String WEATHER_QUERY = "&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset"
             + "&hourly=temperature_2m,weather_code,is_day&timezone=auto&forecast_days=2";
 
@@ -81,11 +89,28 @@ final class HomeData {
         return i == 3 ? Ui.tr("Dólar", "Dollar") : COIN_NAMES[i];
     }
 
-    private static String pricesUrl() {
+    /** Binance.com refuses the US (HTTP 451); Binance.US answers the same call in dollars. */
+    private static final String[] PRICE_HOSTS = {"https://api.binance.com", "https://api.binance.us"};
+
+    private static String pricesPath() {
         StringBuilder symbols = new StringBuilder();
         int[] coins = active();
-        for (int i = 0; i < coins.length; i++) symbols.append(i == 0 ? "" : ",").append("%22").append(COINS[coins[i]]).append(QUOTE).append("%22");
-        return "https://api.binance.com/api/v3/ticker/24hr?type=MINI&symbols=%5B" + symbols + "%5D";
+        for (int i = 0; i < coins.length; i++) symbols.append(i == 0 ? "" : ",").append("%22").append(COINS[coins[i]]).append(quote()).append("%22");
+        return "/api/v3/ticker/24hr?type=MINI&symbols=%5B" + symbols + "%5D";
+    }
+
+    private static String getPrices() throws IOException {
+        IOException failed = null;
+        for (String host : PRICE_HOSTS) {
+            try {
+                return get(host + pricesPath());
+            } catch (IOException e) {
+                failed = e;
+                // A pair Binance doesn't list (HTTP 400) isn't a refusal: the caller falls back to dollars instead.
+                if ("HTTP 400".equals(e.getMessage())) break;
+            }
+        }
+        throw failed;
     }
 
     static final class Weather {
@@ -122,6 +147,7 @@ final class HomeData {
 
     private HomeData(Context c) {
         cache = c.getSharedPreferences("homedata", Context.MODE_PRIVATE);
+        inDollars = CURRENCY.equals(cache.getString("dollarsFor", ""));
         try {
             if (Prefs.quotes()) {
                 String p = cache.getString("prices", null);
@@ -148,7 +174,16 @@ final class HomeData {
             fetchingPrices = true;
             io.execute(() -> {
                 try {
-                    String body = get(pricesUrl());
+                    String body;
+                    try {
+                        body = getPrices();
+                    } catch (IOException e) {
+                        if (inDollars || CURRENCY.equals("USD") || !"HTTP 400".equals(e.getMessage())) throw e;
+                        inDollars = true;
+                        cache.edit().putString("dollarsFor", CURRENCY).apply();
+                        AppLog.w("prices: Binance has no " + CURRENCY + " pairs, using dollars");
+                        body = getPrices();
+                    }
                     parsePrices(body);
                     pricesAt = System.currentTimeMillis();
                     cache.edit().putString("prices", body).putLong("pricesAt", pricesAt).apply();
@@ -190,7 +225,7 @@ final class HomeData {
 
     private void parsePrices(String body) throws Exception {
         JSONArray list = new JSONArray(body);
-        String quote = QUOTE;
+        String quote = quote();
         int found = 0;
         for (int i = 0; i < list.length(); i++) {
             JSONObject o = list.getJSONObject(i);
@@ -322,12 +357,22 @@ final class HomeData {
         return String.format(locale(), "%.2f", v);
     }
 
-    /** $108,234 · $185.20 · R$ 581.234 · R$ 5,61 (cents only below a thousand), in the configured currency. */
+    /**
+     * $108,234 · $185.20 · R$ 581.234 · 74 264 € (cents only below a thousand), in the configured currency, with the
+     * symbol and spaces where the language puts them.
+     */
     static String brl(double v) {
         String symbol = currencySymbol();
         if (Double.isNaN(v)) return symbol + "—";
-        return Ui.once("brl", v, () -> v >= 1000 ? String.format(locale(), symbol + "%,.0f", v)
-                : String.format(locale(), symbol + "%.2f", v));
+        return Ui.once("brl", v, () -> {
+            DecimalFormat f = (DecimalFormat) NumberFormat.getCurrencyInstance(locale());
+            DecimalFormatSymbols s = f.getDecimalFormatSymbols();
+            s.setCurrencySymbol(symbol.trim());   // our symbols: ICU would write "US$" outside the US
+            f.setDecimalFormatSymbols(s);
+            f.setMinimumFractionDigits(v >= 1000 ? 0 : 2);
+            f.setMaximumFractionDigits(v >= 1000 ? 0 : 2);
+            return f.format(v);
+        });
     }
 
     /** The weather in words, from Open-Meteo's WMO code. */
@@ -394,7 +439,7 @@ final class HomeData {
     }
 
     private static String currencySymbol() {
-        switch (CURRENCY) {
+        switch (inDollars ? "USD" : CURRENCY) {
             case "USD": return "$";
             case "BRL": return "R$ ";
             case "EUR": return "€";
@@ -417,10 +462,15 @@ final class HomeData {
         return "US".equals(Locale.getDefault().getCountry());
     }
 
-    /** "+1.2%" / "−0.8%" (a real minus sign). */
+    /** "+1.2%" / "−0.8%" (a real minus sign); "+1,2 %" in the languages that space the percent sign. */
     static String change(double v) {
         if (Double.isNaN(v)) return "";
-        return Ui.once("change", v, () -> (v >= 0 ? "+" : "−") + String.format(locale(), "%.1f%%", Math.abs(v)));
+        return Ui.once("change", v, () -> {
+            NumberFormat f = NumberFormat.getPercentInstance(locale());
+            f.setMinimumFractionDigits(1);
+            f.setMaximumFractionDigits(1);
+            return (v >= 0 ? "+" : "−") + f.format(Math.abs(v) / 100);
+        });
     }
 
     static String hour(long at) {

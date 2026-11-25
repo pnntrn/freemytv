@@ -28,6 +28,16 @@ assert.equal(locale.I18N.locale(),'th-TH');
 assert.equal(locale.I18N.tr('Settings','Settings'),'การตั้งค่า');
 locale.I18N.set('en');
 assert.equal(locale.I18N.tr('Settings','Settings'),'Settings');
+locale.window.CONFIG={latitude:'14.8818',longitude:'103.4936',city:'Mueang Surin, Surin, Thailand',language:'th',temperature:'C'};
+locale.TV={zone:()=> 'Asia/Bangkok'};
+locale.localStorage={getItem:()=>null,setItem(){}};
+locale.I18N.set('th');
+vm.runInContext(fs.readFileSync('web/data.js','utf8'),locale);
+assert.equal(locale.Data.city,'Mueang Surin, Surin, Thailand');
+assert.equal(locale.Data.hour(new Date(2026,9,22,0).getTime()),'00:00');
+assert.equal(locale.Data.hour(new Date(2026,9,22,23).getTime()),'23:00');
+assert.equal(locale.Data.degrees(25.9),'26°');
+assert.equal(locale.Data.condition(0,true),'ท้องฟ้าแจ่มใส');
 console.log('CCTV private URL/channel and Thai language tests passed');
 
 assert.equal(policy.grid(3,4),12); assert.equal(policy.grid(4,4),16);

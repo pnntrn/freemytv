@@ -40,6 +40,7 @@ LAT="$(number latitude 14.8818)"
 LON="$(number longitude 103.4936)"
 ASSIST=false; [ "$(prop disable_assistant false)" = "true" ] && ASSIST=true
 CRYPTO=false; [ "$(prop show_crypto true)" = "true" ] && CRYPTO=true
+ANIMATION=false; [ "$(prop hide_animation false)" = "true" ] && ANIMATION=true
 
 rm -rf out && mkdir -p out/gen/io/freemytv out/classes
 cat > out/gen/io/freemytv/Config.java <<EOF
@@ -50,6 +51,7 @@ final class Config {
     private Config() {}
 
     static final String TMDB_KEY = "$(prop tmdb_key '')";
+    static final String WATCHMODE_KEY = "$(prop watchmode_key '')";
     static final String TMDB_REGION = "$(prop tmdb_region TH)";
     static final String LATITUDE = "$LAT";
     static final String LONGITUDE = "$LON";
@@ -59,6 +61,7 @@ final class Config {
     static final String TEMPERATURE = "$(prop temperature C)";
     static final boolean DISABLE_ASSISTANT = $ASSIST;
     static final boolean SHOW_CRYPTO = $CRYPTO;
+    static final boolean HIDE_ANIMATION = $ANIMATION;
 }
 EOF
 
@@ -112,10 +115,13 @@ EOF
     "${JAVA_HOME:+$JAVA_HOME/bin/}java" out/FixAssets.java out/base.apk
     ;;
 esac
-"$JAVAC" -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$AJ:$BT/core-lambda-stubs.jar" -classpath "$AJ" \
+# On Windows javac separates paths with ";", and d8 and apksigner are .bat files.
+CPSEP=:; BAT=; case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) CPSEP=";"; BAT=.bat ;; esac
+"$JAVAC" -nowarn -Xlint:-options -source 8 -target 8 -bootclasspath "$AJ$CPSEP$BT/core-lambda-stubs.jar" -classpath "$AJ" \
   -encoding UTF-8 -d out/classes $(find app/src out/gen -name '*.java')
-"$BT/d8" --release --min-api 28 --lib "$AJ" --output out $(find out/classes -name '*.class')
-(cd out && zip -qj base.apk classes.dex)
+"$BT/d8$BAT" --release --min-api 28 --lib "$AJ" --output out $(find out/classes -name '*.class')
+if command -v zip >/dev/null; then (cd out && zip -qj base.apk classes.dex)
+else "${JAVA_HOME:+$JAVA_HOME/bin/}jar" -u -M -f out/base.apk -C out classes.dex; fi # Git Bash has no zip
 "$BT/zipalign" -f -p 4 out/base.apk out/aligned.apk
 
 # --- Local builds keep their key; CI releases must supply an existing persistent key.
@@ -128,6 +134,6 @@ if [ ! -f "$KEYSTORE" ]; then
   "$KEYTOOL" -genkeypair -keystore "$KEYSTORE" -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 20000 \
     -storepass:env APK_STORE_PASSWORD -keypass:env APK_KEY_PASSWORD -dname "CN=Free My TV" >/dev/null 2>&1
 fi
-"$BT/apksigner" sign --ks "$KEYSTORE" --ks-key-alias "$KEY_ALIAS" --ks-pass env:APK_STORE_PASSWORD \
+"$BT/apksigner$BAT" sign --ks "$KEYSTORE" --ks-key-alias "$KEY_ALIAS" --ks-pass env:APK_STORE_PASSWORD \
   --key-pass env:APK_KEY_PASSWORD --out FreeMyTV.apk out/aligned.apk
 echo "Built FreeMyTV.apk ($(du -h FreeMyTV.apk | cut -f1)). Install: adb install -r FreeMyTV.apk"
